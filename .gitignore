@@ -1,0 +1,4 @@
+.vscode/
+data_zip/
+__pycache__/
+VOCdevkit/
