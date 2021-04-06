@@ -116,7 +116,7 @@ def train(opt):
         avg_roi_reg_loss = 0.0
         avg_rpn_score_loss = 0.0
         avg_roi_score_loss = 0.0
-        total_loss = 0.0
+        avg_total_loss = 0.0
         # one epoch
         for idx, one_obj_ds in tqdm(enumerate(train_dataset)):
             img, gt_boxes, gt_labels, _, scale = one_obj_ds
@@ -137,7 +137,7 @@ def train(opt):
             avg_roi_reg_loss += (roi_reg_loss.item()-avg_roi_reg_loss)/(idx+1) 
             avg_rpn_score_loss += (rpn_score_loss.item()-avg_rpn_score_loss)/(idx+1)
             avg_roi_score_loss += (roi_score_loss.item()-avg_roi_score_loss)/(idx+1)
-            total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss
+            avg_total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss
 
             if (idx+1)%opt.plot_spot == 0:
                 if os.path.exists(opt.debug_file):
@@ -148,7 +148,7 @@ def train(opt):
                 vis.plot('rpn_cls_loss', avg_rpn_score_loss)
                 vis.plot('roi_loc_loss', avg_roi_reg_loss)
                 vis.plot('roi_cls_loss', avg_roi_score_loss)
-                vis.plot('total_loss', total_loss)
+                vis.plot('total_loss', avg_total_loss)
 
                 # plot groud truth bboxes
                 ori_img = inverse_normalize(img[0].numpy())
