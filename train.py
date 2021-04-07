@@ -139,6 +139,9 @@ def train(opt):
             avg_roi_score_loss += (roi_score_loss.item()-avg_roi_score_loss)/(idx+1)
             avg_total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss
 
+            if idx == 2500:
+                break
+            
             if (idx+1)%opt.plot_spot == 0:
                 if os.path.exists(opt.debug_file):
                     ipdb.set_trace()
@@ -171,7 +174,7 @@ def train(opt):
                 vis.img('pred_img', pred_img)
 
         # eval
-        result = eval(model, opt)
+        result = eval(fasterrcnn, opt)
         # py visdom plot
         vis.plot('eval_map', result['map'])
         # log

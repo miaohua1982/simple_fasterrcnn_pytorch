@@ -3,6 +3,7 @@ from __future__ import  absolute_import
 import torch as t
 import numpy as np
 from torchvision.ops import nms
+from mode.util.nms import nms as my_nms
 from model.util.bbox_opt import delta2box
 
 

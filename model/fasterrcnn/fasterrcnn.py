@@ -146,8 +146,6 @@ class FasterRCNN(nn.Module):
             gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
 
             roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, running_args.roi_sigma)
-            if roi_reg_loss < 0.05:
-                print('roi reg loss', roi_reg_loss)
             roi_score_loss = F.cross_entropy(roi_scores, gt_sample_labels)
         else:
             roi_score_loss = 0

@@ -49,7 +49,6 @@ class Voc_Dataset:
         assert idx >= 0 and idx < len(self.ids)
 
         annotation_file_path = os.path.join(self.dataset_base_path, 'Annotations', self.ids[idx]+'.xml')
-        print(idx,":",annotation_file_path)
         from xml.dom.minidom import parse
         
         anno = parse(annotation_file_path)
