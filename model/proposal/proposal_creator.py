@@ -58,11 +58,13 @@ class ProposalCreator:
         # 5. nms
         # note  rois (Tensor[N, 4])): boxes to perform NMS on. They 
         # are expected to be in ``(x1, y1, x2, y2)`` format with ``0 <= x1 < x2`` and ``0 <= y1 < y2``.
-        keep_idx = nms(t.from_numpy(rois).cuda() if t.cuda.is_available() else t.from_numpy(rois), \
-                       t.from_numpy(scores).cuda() if t.cuda.is_available() else t.from_numpy(scores), \
-                       self.nms_thresh)
-        rois = rois[keep_idx[:post_num].numpy()]
+        #keep_idx = nms(t.from_numpy(rois).cuda() if t.cuda.is_available() else t.from_numpy(rois), \
+        #               t.from_numpy(scores).cuda() if t.cuda.is_available() else t.from_numpy(scores), \
+        #               self.nms_thresh)
+        #rois = rois[keep_idx[:post_num].numpy()]
 
+        keep_idx = my_nms(rois, scores, self.nms_thresh)
+        rois = rois[keep_idx[:post_num]]
         return rois
 
 

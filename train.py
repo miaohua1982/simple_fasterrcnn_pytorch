@@ -45,7 +45,7 @@ def scale_lr(optimizer, decay=0.1):
         param_group['lr'] *= decay
     return optimizer
 
-def eval(model, opt, test_num=6000):
+def eval(model, opt, test_num=5000):
     # load eval dataset
     dataset = Voc_Dataset(opt.dataset_base_path,min_size=opt.min_img_size, max_size=opt.max_img_size, split='test')
     test_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=True)
@@ -63,7 +63,8 @@ def eval(model, opt, test_num=6000):
     for idx, one_obj_ds in tqdm(enumerate(test_dataset)):
         img, boxes, labels, difficults, scale = one_obj_ds
         
-        pboxes, plabels, pscores = model.predict(img, boxes, labels, scale.item())
+        with t.no_grad():
+            pboxes, plabels, pscores = model.predict(img, boxes, labels, scale.item())
         
         pred_boxes.append(pboxes.numpy())
         pred_labels.append(plabels.numpy())
@@ -76,7 +77,7 @@ def eval(model, opt, test_num=6000):
             break
     
     # result including ap & map
-    result = eval_detection_voc(pred_bboxes, pred_labels, pred_scores, gt_bboxes, gt_labels, gt_difficults, iou_thresh=0.5, use_07_metric=True)
+    result = eval_detection_voc(pred_boxes, pred_labels, pred_scores, gt_boxes, gt_labels, gt_difficults, iou_thresh=0.5, use_07_metric=True)
     
     # set back to train mode
     model.train()
@@ -139,9 +140,6 @@ def train(opt):
             avg_roi_score_loss += (roi_score_loss.item()-avg_roi_score_loss)/(idx+1)
             avg_total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss
 
-            if idx == 2500:
-                break
-            
             if (idx+1)%opt.plot_spot == 0:
                 if os.path.exists(opt.debug_file):
                     ipdb.set_trace()
@@ -186,7 +184,7 @@ def train(opt):
         # save model if needed
         if result['map'] > cur_eval_map:
             cur_eval_map = result['map']
-            save_path = running_args.save_model_path % (time.strftime("%m%d_%H%M%S"), cur_eval_map)
+            save_path = running_args.save_model_path % (time.strftime("%m%d_%H%M"), cur_eval_map)
             t.save(fasterrcnn.state_dict(), save_path)
 
         # decay the model's learning rate

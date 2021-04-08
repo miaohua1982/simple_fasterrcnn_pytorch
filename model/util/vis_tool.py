@@ -235,7 +235,7 @@ class Visualizer(object):
         self.log({'loss':1,'lr':0.0001})
         """
         self.log_text += ('[{time}] {info} <br>'.format(
-            time=time.strftime('%m/%d %H%M%S:'), \
+            time=time.strftime('%m/%d %H:%M'), \
             info=info))
         self.vis.text(self.log_text, win)
 
