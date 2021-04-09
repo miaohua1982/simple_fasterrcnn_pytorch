@@ -64,7 +64,7 @@ py::array_t<float> calc_iou(py::array_t<float>& boxes1, py::array_t<float>& boxe
            float inter_area = ws*hs;
 
            float iou = 0.0f;
-           if((area1+area2-inter_area)>0.0001f) 
+           if((area1+area2-inter_area)>0.000001f) 
               iou = inter_area/(area1+area2-inter_area);
            ptr_result[i*size1 + j] = iou;
        }
@@ -74,7 +74,7 @@ py::array_t<float> calc_iou(py::array_t<float>& boxes1, py::array_t<float>& boxe
 
 }
 
-PYBIND11_MODULE(nms_mh, m) {
+PYBIND11_MODULE(nms, m) {
     m.doc() = "non-maximum supress with pybind11";
 
     m.def("add", &add, "for test");

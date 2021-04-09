@@ -1,5 +1,6 @@
 import numpy as np
 import torch as t
+import nms_mh as mh
 from model.util.bbox_opt import calc_iou, calc_iou_torch
 
 def nms(boxes, scores, iou_thresh=0.5):
@@ -19,7 +20,7 @@ def nms(boxes, scores, iou_thresh=0.5):
     
     while(arg_idx.shape[0]>=2):
         test_boxes = boxes[arg_idx]
-        boxes_iou = calc_iou(test_boxes[:1], test_boxes[1:])[0]   # the shape is 1*boxes.shape[0]-1
+        boxes_iou = mh.calc_iou(test_boxes[:1], test_boxes[1:])[0]   # the shape is 1*boxes.shape[0]-1
         n = test_boxes.shape[0]
         keep_list = np.arange(1,n)[boxes_iou<=iou_thresh]
         result.append(arg_idx[0])
@@ -80,7 +81,7 @@ def nms2(boxes, scores, iou_thresh=0.5):
     boxes_mask = np.zeros((n,n), dtype=np.int32)
     
     for i in range(1,n):
-        row = calc_iou(test_boxes[(i-1):i,:], test_boxes[i:,:])[0]
+        row = mh.calc_iou(test_boxes[(i-1):i,:], test_boxes[i:,:])[0]
         boxes_mask[i-1,i:]=row<=iou_thresh
     
     k = boxes_mask.sum(axis=0)
