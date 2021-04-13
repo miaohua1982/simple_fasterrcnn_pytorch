@@ -71,3 +71,11 @@ class ROI_Pooling(t.autograd.Function):
                     grad_input[:, one_c_ind, feat_pos[ch, idx, one_c_ind, 0], feat_pos[ch, idx, one_c_ind, 1]] += \
                         grad_output[ch, one_c_ind, pos_x, pos_y]
         return grad_input, None
+
+if __name__ == '__main__':
+    x = t.rand(1, 4, 16, 16)
+    rois = t.tensor([[4,4,40,65], [5,7,32,64], [12,24,96,128], [34,52,96,156]])
+    roi_pooling = ROI_Pooling(7, 1.0/16)
+    feat = roi_pooling.apply(x, rois) # 128,512,7,7
+    f = feat.sum()
+    f.backward()
