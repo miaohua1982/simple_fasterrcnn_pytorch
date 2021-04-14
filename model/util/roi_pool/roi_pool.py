@@ -1,5 +1,6 @@
 import torch as t
 import numpy as np
+from torchvision.ops import RoIPool
 
 class ROI_Pooling(t.autograd.Function):
     def __init__(self, roi_size, spatial_scale):
@@ -14,7 +15,7 @@ class ROI_Pooling(t.autograd.Function):
         feat = []
         feat_pos = []
         for one_roi in rois:
-            scale_roi = t.round(one_roi*ROI_Pooling.spatial_scale)
+            scale_roi = t.round(one_roi*ROI_Pooling.spatial_scale+0.000001)
             
             x = t.linspace(scale_roi[0], scale_roi[2]+1, ROI_Pooling.roi_size+1)
             y = t.linspace(scale_roi[1], scale_roi[3]+1, ROI_Pooling.roi_size+1)
@@ -27,10 +28,10 @@ class ROI_Pooling(t.autograd.Function):
             bins_lefttop = bins_lefttop.floor().int()
             bins_rightdown = bins_rightdown.ceil().int()
             # clip to (0~w) & (0~h)
-            bins_lefttop[:,0].clip_(min=0, max=w)
-            bins_lefttop[:,1].clip_(min=0, max=h)
-            bins_rightdown[:,0].clip_(min=0, max=w)
-            bins_rightdown[:,1].clip_(min=0, max=h)
+            bins_lefttop[:,0].clamp_(min=0, max=w)
+            bins_lefttop[:,1].clamp_(min=0, max=h)
+            bins_rightdown[:,0].clamp_(min=0, max=w)
+            bins_rightdown[:,1].clamp_(min=0, max=h)
 
             feat_val = t.zeros(c, ROI_Pooling.roi_size*ROI_Pooling.roi_size)
             feat_rp = t.zeros(ROI_Pooling.roi_size*ROI_Pooling.roi_size, c, 2).long()
@@ -76,11 +77,12 @@ class ROI_Pooling(t.autograd.Function):
         return grad_input, None
 
 if __name__ == '__main__':
-    feat_x = t.rand(1, 2, 8, 8)
-    rois = t.tensor([[4,4,7,5], [1,3,3,7]])
+    feat_x = t.rand(1, 4, 37, 50)
+    rois = t.tensor([[4,4,7,5], [1,3,3,7],[24,13,126,134]], dtype=t.float32)
+    #rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
 
-    scale=1.0/2
-    roi_size=4
+    scale=1.0/16
+    roi_size=7
     roi = RoIPool((roi_size,roi_size),  scale)
     roi_indices = t.zeros(rois.shape[0])
     indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
