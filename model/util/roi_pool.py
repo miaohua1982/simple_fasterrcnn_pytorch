@@ -11,10 +11,12 @@ class ROI_Pooling(t.autograd.Function):
     def forward(ctx, feat_x, rois):
         n, c, h, w = feat_x.shape
         assert n == 1 # we only support 1 batch
-    
+        
         feat = []
         feat_pos = []
         for one_roi in rois:
+            # here the python round is 4 minus 1, 5 add to even, 6 add 1, round(1.5)--->2, round(2.5)--->2
+            # here I want a clear round, <5 drop, >=5 add 1
             scale_roi = t.round(one_roi*ROI_Pooling.spatial_scale+0.000001)
             
             x = t.linspace(scale_roi[0], scale_roi[2]+1, ROI_Pooling.roi_size+1)
@@ -49,8 +51,8 @@ class ROI_Pooling(t.autograd.Function):
         
         feat = t.cat(feat, dim=0)
         feat_pos = t.cat(feat_pos, dim=0)
-        ctx.save_for_backward(feat_pos)
-        ctx.save_for_backward(x.shape)
+        # save for backward
+        ctx.save_for_backward(feat_pos, t.tensor(feat_x.shape))
         return feat
     
     @staticmethod
@@ -63,25 +65,26 @@ class ROI_Pooling(t.autograd.Function):
         roi_size = ROI_Pooling.roi_size
         n, c, h, w = grad_output.shape
         assert (h==roi_size) & (w==roi_size)
-        grad_input = t.zeros(target_shape)
-        print(grad_output.shape)
-        print(target_shape)
-        
+        grad_input = t.zeros(target_shape.tolist())  # tensor can not be size
+
         for ch, one_bs_grad in enumerate(grad_output):   # typical value 128*
             for idx in range(roi_size*roi_size): # typical value is 7*7
-                pos_y = idx/roi_size
+                pos_y = idx//roi_size
                 pos_x = idx%roi_size
                 for one_c_ind in range(c):  # typical value is 512
                     grad_input[:, one_c_ind, feat_pos[ch, idx, one_c_ind, 0], feat_pos[ch, idx, one_c_ind, 1]] += \
-                        grad_output[ch, one_c_ind, pos_y, pos_x]
+                        grad_output[ch, one_c_ind, pos_y, pos_x] #here note the y&x position, not x,y, but y,x
+        
         return grad_input, None
 
 if __name__ == '__main__':
-    feat_x = t.rand(1, 4, 37, 50)
-    rois = t.tensor([[4,4,7,5], [1,3,3,7],[24,13,126,134]], dtype=t.float32)
-    #rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
+    #feat_x = t.rand(1, 4, 37, 50)
+    feat_x = t.rand(1, 2, 8, 8, requires_grad=True)
+    #rois = t.tensor([[4,4,7,5], [1,3,3,7],[24,13,126,134]], dtype=t.float32)
+    rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
 
-    scale=1.0/16
+    #scale=1.0/16
+    scale=1.0/2
     roi_size=7
     roi = RoIPool((roi_size,roi_size),  scale)
     roi_indices = t.zeros(rois.shape[0])
