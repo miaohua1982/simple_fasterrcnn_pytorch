@@ -152,9 +152,6 @@ void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array
     // the buffer info for array
     py::buffer_info grad_output_buf = grad_output.request();
     py::buffer_info grad_input_buf = grad_input.request();
-
-    //access numpy.ndarray
-    float* grad_input_ptr = (float*)grad_input_buf.ptr;
     // the channel & height & widht for grad input buf, the same shape with feat_x in forward function
     if (grad_input_buf.shape[0] != 1)  // input grad's shape is assumed to be 1*c*h*w, a typical value is 1*512*37*50
     {
@@ -163,17 +160,15 @@ void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array
 
     auto grad_output_cache = grad_output.unchecked<4>();
     auto feat_pos_cache = feat_pos.unchecked<4>();
-
-    size_t c = grad_input_buf.shape[1];
-    size_t h = grad_input_buf.shape[2];
-    size_t w = grad_input_buf.shape[3];
+    auto grad_input_cache = grad_input.mutable_unchecked<4>();
 
     // the batch size of grad output from upstream
     size_t bs_grad_output = grad_output_buf.shape[0];
+    // the channel number of grad input
+    size_t c = grad_input_buf.shape[1];
 
     // the base offset for buffers
     int num_feat_map = roi_size*roi_size;
-    int one_input_feat_inter = h*w;
     // iterator the grad one by one 
     for(int i = 0; i < bs_grad_output; ++i)
     {
@@ -183,7 +178,8 @@ void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array
                 int max_feat_pos_y = feat_pos_cache(i, idx, ch, 0);
                 int max_feat_pos_x = feat_pos_cache(i, idx, ch, 1);
                 // add grad from upstream
-                grad_input_ptr[ch*one_input_feat_inter+max_feat_pos_y*w+max_feat_pos_x] += grad_output_cache(i,ch,idx/roi_size,idx%roi_size);
+                //grad_input_ptr[ch*one_input_feat_inter+max_feat_pos_y*w+max_feat_pos_x]
+                grad_input_cache(0, ch, max_feat_pos_y, max_feat_pos_x) += grad_output_cache(i, ch, idx/roi_size, idx%roi_size);
                 //[output_grad_base+ch*one_output_grad_inter+idx];
             }
         }
