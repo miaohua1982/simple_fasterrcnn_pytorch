@@ -2,11 +2,20 @@
 #include<pybind11/pybind11.h>
 #include<pybind11/numpy.h>
 #include<cmath>
+#include<iostream>
 
 namespace py = pybind11;
 
 int add(int i, int j) {
     return i + j;
+}
+
+inline int min(int a, int b){
+    return a<b? a:b;
+}
+
+inline int max(int a, int b){
+    return a<b? b:a;
 }
 
 struct Roi
@@ -58,11 +67,11 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
     py::buffer_info output_feat_buf = output_feat.request();
     py::buffer_info feat_pos_buf = feat_pos.request();
 
-    if (feat_x_buf.shape[0] != 1)
+    if (feat_x_buf.shape[0] != 1)  // input feat's shape is assumed to be 1*ch*h*w, a typical value is 1*512*37*50
     {
         throw std::runtime_error("we only support batch==1 right now!");
     }
-    if (rois_buf.shape[1] != 4))
+    if (rois_buf.shape[1] != 4)   // rois are always to be R*4, a typical value is 128*4
     {
         throw std::runtime_error("rois array shape must be match [R,4]!");
     }
@@ -82,17 +91,17 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
     float * y = new float[roi_size+1]();
 
     int roi_feat_num = roi_size*roi_size;
-    int feat_interval = h*w;
-    int output_feat_interval = c*roi_feat_num;
-    int feat_pos_interval = roi_feat_num*c*2;
-    for(int i = 0; i < num_rois; ++i) {
+    size_t feat_interval = h*w;
+    size_t output_feat_interval = c*roi_feat_num;
+    size_t feat_pos_interval = roi_feat_num*c*2;
+    for(int i = 0; i < num_rois; ++i, rois_ptr+=4) {
         Roi scale_roi(rois_ptr[0], rois_ptr[1], rois_ptr[2], rois_ptr[3]);
         scale_roi = scale_roi*spatial_scale;
         scale_roi.round();
         // generate grid axis
         gen_steps(x, scale_roi[0], scale_roi[2]+1, roi_size);
         gen_steps(y, scale_roi[1], scale_roi[3]+1, roi_size);
-        
+        // the base for buffer offset 
         int output_feat_base = i*output_feat_interval;
         int feat_pos_base = i*feat_pos_interval;
         for(int j = 0; j < roi_size; ++j) {
@@ -102,10 +111,10 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
                 float lt_x = x[k];
                 float rd_x = x[k+1];
 
-                lt_y_pos = std::max(std::min(int(std::floor(lt_y)), h), 0);
-                lt_x_pos = std::max(std::min(int(std::floor(lt_x)), w), 0);
-                rd_y_pos = std::max(std::min(int(std::ceil(rd_y)), h), 0);
-                rd_x_pos = std::max(std::min(int(std::ceil(rd_x)), w), 0);
+                int lt_y_pos = max(min(int(std::floor(lt_y)), h), 0);
+                int lt_x_pos = max(min(int(std::floor(lt_x)), w), 0);
+                int rd_y_pos = max(min(int(std::ceil(rd_y)), h), 0);
+                int rd_x_pos = max(min(int(std::ceil(rd_x)), w), 0);
 
                 // get the max value in [lt_x_pos:rd_x_pos) : [lt_y_pos:rd_y_pos)
                 
@@ -114,7 +123,7 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
                 for(int ch = 0; ch < c; ++ch) {
                     float max_val = -1000000.0f;
                     int max_pos_y = -1;
-                    int max_pos_x = -1
+                    int max_pos_x = -1;
                     for(int s = lt_y_pos; s < rd_y_pos; ++s)
                         for(int e = lt_x_pos; e < rd_x_pos; ++e)
                             if(feat_ptr[ch*feat_interval+w*s+e]>max_val) {
@@ -140,41 +149,42 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
 
 void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array_t<int>& feat_pos, py::array_t<float> & grad_input, int roi_size)
 {
+    // the buffer info for array
     py::buffer_info grad_output_buf = grad_output.request();
     py::buffer_info grad_input_buf = grad_input.request();
-    py::buffer_info feat_pos_buf = feat_pos.request();
 
     //access numpy.ndarray
     float* grad_input_ptr = (float*)grad_input_buf.ptr;
-    float* grad_output_ptr = (float*)grad_output_buf.ptr;
-    int* feat_pos_ptr = (int*)feat_pos_buf.ptr;
+    // the channel & height & widht for grad input buf, the same shape with feat_x in forward function
+    if (grad_input_buf.shape[0] != 1)  // input grad's shape is assumed to be 1*c*h*w, a typical value is 1*512*37*50
+    {
+        throw std::runtime_error("we only support batch==1 right now!");
+    }
+
+    auto grad_output_cache = grad_output.unchecked<4>();
+    auto feat_pos_cache = feat_pos.unchecked<4>();
 
     size_t c = grad_input_buf.shape[1];
     size_t h = grad_input_buf.shape[2];
     size_t w = grad_input_buf.shape[3];
 
-    size_t bs = grad_output_buf.shape[0];
-    int num_feat_map = roi_size*roi_size;
-    int feat_pos_inter = roi_size*roi_size*c*2;
-    int output_grad_inter = c*roi_size*roi_size;
-    int one_output_grad_inter = roi_size*roi_size;
-    int one_feat_pos_inter = c*2;
-    int one_input_feat_inter = h*w;
-    for(int i = 0; i < bs; ++i)
-    {
-        int feat_pos_base = i*feat_pos_inter;
-        int output_grad_base = i*output_grad_inter;
-        for(int idx = 0; idx < num_feat_map; ++idx) {
-            int pos_y = idx/roi_size;
-            int pos_x = idx%roi_size;
-            
-            int one_feat_pos_base = idx*one_feat_pos_inter;
-            for(int ch = 0; ch < c; ++ch) {
-                int max_feat_pos_y = feat_pos_ptr[feat_pos_base+one_feat_pos_base+ch*2+0];
-                int max_feat_pos_x = feat_pos_ptr[feat_pos_base+one_feat_pos_base+ch*2+1];
+    // the batch size of grad output from upstream
+    size_t bs_grad_output = grad_output_buf.shape[0];
 
-                grad_input_ptr[ch*one_input_feat_inter+max_feat_pos_y*w+max_feat_pos_x] += \
-                grad_output_ptr[output_grad_base+ch*one_output_grad_inter+idx]
+    // the base offset for buffers
+    int num_feat_map = roi_size*roi_size;
+    int one_input_feat_inter = h*w;
+    // iterator the grad one by one 
+    for(int i = 0; i < bs_grad_output; ++i)
+    {
+        for(int idx = 0; idx < num_feat_map; ++idx) {
+            for(int ch = 0; ch < c; ++ch) {
+                // the feat pos has recorded the position where the max value from during forwarding procedure
+                int max_feat_pos_y = feat_pos_cache(i, idx, ch, 0);
+                int max_feat_pos_x = feat_pos_cache(i, idx, ch, 1);
+                // add grad from upstream
+                grad_input_ptr[ch*one_input_feat_inter+max_feat_pos_y*w+max_feat_pos_x] += grad_output_cache(i,ch,idx/roi_size,idx%roi_size);
+                //[output_grad_base+ch*one_output_grad_inter+idx];
             }
         }
     }

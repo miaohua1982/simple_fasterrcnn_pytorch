@@ -86,14 +86,24 @@ if __name__ == '__main__':
     #scale=1.0/16
     scale=1.0/2
     roi_size=7
-    roi = RoIPool((roi_size,roi_size),  scale)
+    roi_pooling_lib = RoIPool((roi_size,roi_size),  scale)
     roi_indices = t.zeros(rois.shape[0])
     indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
-    feat1 = roi(feat_x, indices_and_rois)
+    feat1 = roi_pooling_lib(feat_x, indices_and_rois)
 
     roi_pooling = ROI_Pooling(roi_size, scale)
     feat2 = roi_pooling.apply(feat_x, rois) # 128,512,7,7
     
     print(t.all(feat1==feat2))
-    f = feat.sum()
-    f.backward()
+
+    # test backward
+    f1 = feat1.sum()
+    f1.backward()
+    grad1 = feat_x.grad.clone()
+
+    feat_x.grad.zero_()
+    f2 = feat2.sum()
+    f2.backward()
+    grad2 = feat_x.grad.clone()
+
+    print(t.all(grad1==grad2))

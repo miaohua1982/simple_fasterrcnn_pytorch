@@ -1,6 +1,6 @@
 #----------------------------------------------------------------------------------
 # note I copy the original setup file from https://github.com/pybind/python_example
-# and I modified some code to accept my nms cpp code
+# and I modified some code to accept my roi pooling cpp code
 
 from setuptools import setup
 
@@ -22,20 +22,20 @@ __version__ = "0.0.1"
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
 ext_modules = [
-    Pybind11Extension("nms_mh",
-        ["src/nms_c.cpp"],
+    Pybind11Extension("roi_pool_mh",
+        ["src/roi_pool_c.cpp"],
         # Example: passing in the version to the compiled code
         define_macros = [('VERSION_INFO', __version__)],
         ),
 ]
 
 setup(
-    name="nms_mh",
+    name="roi_pool_mh",
     version=__version__,
     author="victor miao",
     author_email="miaohua1982@gmail.com",
     url="https://github.com/miaohua1982/simple_fasterrcnn_pytorch",
-    description="A c++ version nms algorithm project using pybind11",
+    description="A roi c++ version pool algorithm project using pybind11",
     long_description="",
     ext_modules=ext_modules,
     extras_require={"test": "pytest"},
