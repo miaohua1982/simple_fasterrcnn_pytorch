@@ -46,13 +46,13 @@ class ROI_Pooling_C(t.autograd.Function):
         return grad_input, None
 
 if __name__ == '__main__':
-    #feat_x = t.rand(1, 4, 37, 50)
-    feat_x = t.rand(1, 2, 8, 8, requires_grad=True)
-    #rois = t.tensor([[4,4,7,5], [1,3,3,7],[24,13,126,134]], dtype=t.float32)
-    rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
+    feat_x = t.rand(1, 4, 37, 50, requires_grad=True)
+    #feat_x = t.rand(1, 2, 8, 8, requires_grad=True)
+    rois = t.tensor([[4,4,7,5], [1,3,3,7],[24,13,126,134]], dtype=t.float32)
+    #rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
 
     #scale=1.0/16
-    scale=1.0/2
+    scale=1.0/16
     roi_size=7
     roi_pooling_lib = RoIPool((roi_size,roi_size),  scale)
     roi_indices = t.zeros(rois.shape[0])
