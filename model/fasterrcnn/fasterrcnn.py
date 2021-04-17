@@ -23,20 +23,20 @@ def _smooth_l1_loss(x, t, in_weight, sigma):
          (1 - flag) * (abs_diff - 0.5 / sigma2))
     return y.sum()
 
-
 def smooth_l1_loss(pred_loc, gt_loc, gt_label, sigma=1):
     in_weight = t.zeros(gt_loc.shape).cuda() if t.cuda.is_available() else t.zeros(gt_loc.shape)
     # Localization loss is calculated only for positive rois.
     # NOTE:  unlike origin implementation, 
     # we don't need inside_weight and outside_weight, they can calculate by gt_label
     # in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight).cuda()] = 1
-    in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight)] = 1  #remove cuda for cpu running
+    if t.cuda.is_available():
+        in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight).cuda()] = 1
+    else:
+        in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight)] = 1  #remove cuda for cpu running
     loc_loss = _smooth_l1_loss(pred_loc, gt_loc, in_weight.detach(), sigma)
     # Normalize by total number of negtive and positive rois.
     loc_loss /= ((gt_label >= 0).sum().float()) # ignore gt_label==-1 for rpn_loss
     return loc_loss
-
-
 
 class FasterRCNN(nn.Module):
     def __init__(self, n_fg_class, backbone, classifier):

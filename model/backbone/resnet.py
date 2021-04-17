@@ -1,17 +1,27 @@
+from torchvision.model import resnet101
+
 from torch import nn
 from torchvision.models import vgg16
 
-def decom_vgg16(opt):
+def decom_resnet101(opt):
     """Get torch pretrained vgg16 model
     Returns:
         extractor: the top layers of vgg16
         classifier: the classifier of vgg16(tail layers)
     """
-    model = vgg16(pretrained=True)
+    model = resnet101(pretrained=True)
 
-    # the 30-th layer is the (avgpool): AdaptiveAvgPool2d(output_size=(7, 7)), we do not need it
-    # we have roi pooling layer
-    features = list(model.features)[:30] 
+    # structure of resnet101
+    # (conv1): Conv2d(3, 64, kernel_size=(7, 7), stride=(2, 2), padding=(3, 3), bias=False)
+    # (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    # (relu): ReLU(inplace=True)
+    # (maxpool): MaxPool2d(kernel_size=3, stride=2, padding=1, dilation=1, ceil_mode=False)
+    # (layer1)~(layer5)
+    # (avgpool): AdaptiveAvgPool2d(output_size=(1, 1))
+    # (fc): Linear(in_features=2048, out_features=1000, bias=True)
+    features = list[model.conv1, model.bn1, model.relu, model.maxpool, model.layer1, model.layer2, model.layer3 \
+                    model.layer4, model, layer5]
+    # we have roi pool, do not need avgpool
     classifier = model.classifier
 
     # the layers in classifier

@@ -91,8 +91,8 @@ if __name__ == '__main__':
     indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
     feat1 = roi_pooling_lib(feat_x, indices_and_rois)
 
-    roi_pooling = ROI_Pooling(roi_size, scale)
-    feat2 = roi_pooling.apply(feat_x, rois) # 128,512,7,7
+    roi_pooling_py = ROI_Pooling(roi_size, scale)
+    feat2 = roi_pooling_py.apply(feat_x, rois) # 128,512,7,7
     
     print(t.all(feat1==feat2))
 

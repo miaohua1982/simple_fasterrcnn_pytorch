@@ -2,7 +2,6 @@
 #include<pybind11/pybind11.h>
 #include<pybind11/numpy.h>
 #include<cmath>
-#include<iostream>
 
 namespace py = pybind11;
 
@@ -55,8 +54,10 @@ struct Roi
 
 void gen_steps(float * buf, float s, float e, int n) {
     float interval = (e-s)/n;
-    for(int i = 0; i < n; ++i, ++buf)
-        *buf = s+interval*i;
+    *buf = s;
+    ++buf;
+    for(int i = 1; i < n; ++i, ++buf)
+        *buf = *(buf-1)+interval;
     *buf = e;
 }
 
@@ -77,7 +78,7 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
     }
 
     //access numpy.ndarray
-    float* feat_ptr = (float*)feat_x_buf.ptr;
+    auto feats = feat_x.unchecked<4>();
     float* rois_ptr = (float*)rois_buf.ptr;
     float* output_feat_ptr = (float*)output_feat_buf.ptr;
     int* feat_pos_ptr = (int*)feat_pos_buf.ptr;
@@ -91,9 +92,8 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
     float * y = new float[roi_size+1]();
 
     int roi_feat_num = roi_size*roi_size;
-    size_t feat_interval = h*w;
     size_t output_feat_interval = c*roi_feat_num;
-    size_t feat_pos_interval = roi_feat_num*c*2;
+    size_t feat_pos_interval = c*roi_feat_num*2;
     for(int i = 0; i < num_rois; ++i, rois_ptr+=4) {
         Roi scale_roi(rois_ptr[0], rois_ptr[1], rois_ptr[2], rois_ptr[3]);
         scale_roi = scale_roi*spatial_scale;
@@ -104,39 +104,41 @@ void roi_pooling_forward(const py::array_t<float>& feat_x, const py::array_t<flo
         // the base for buffer offset 
         int output_feat_base = i*output_feat_interval;
         int feat_pos_base = i*feat_pos_interval;
-        for(int j = 0; j < roi_size; ++j) {
-            float lt_y = y[j];
-            float rd_y = y[j+1];
-            for(int k = 0; k < roi_size; ++k) {
-                float lt_x = x[k];
-                float rd_x = x[k+1];
+        for(int ch = 0; ch < c; ++ch) {
+            int sub_feat_pos_base = ch*roi_feat_num*2;
+            int sub_output_feat_base = ch*roi_feat_num;
+            for(int j = 0; j < roi_size; ++j) {
+                float lt_y = y[j];
+                float rd_y = y[j+1];
+                for(int k = 0; k < roi_size; ++k) {
+                    float lt_x = x[k];
+                    float rd_x = x[k+1];
 
-                int lt_y_pos = max(min(int(std::floor(lt_y)), h), 0);
-                int lt_x_pos = max(min(int(std::floor(lt_x)), w), 0);
-                int rd_y_pos = max(min(int(std::ceil(rd_y)), h), 0);
-                int rd_x_pos = max(min(int(std::ceil(rd_x)), w), 0);
-
-                // get the max value in [lt_x_pos:rd_x_pos) : [lt_y_pos:rd_y_pos)
+                    int lt_y_pos = max(min(int(std::floor(lt_y)), h), 0);
+                    int lt_x_pos = max(min(int(std::floor(lt_x)), w), 0);
+                    int rd_y_pos = max(min(int(std::ceil(rd_y)), h), 0);
+                    int rd_x_pos = max(min(int(std::ceil(rd_x)), w), 0);
                 
-                int output_suffix_pos = roi_size*j+k;
-                int output_feat_pos_base = output_suffix_pos*c*2;
-                for(int ch = 0; ch < c; ++ch) {
+                    int output_suffix_pos = roi_size*j+k;
+                
                     float max_val = -1000000.0f;
                     int max_pos_y = -1;
                     int max_pos_x = -1;
+                    // get the max value in [lt_x_pos:rd_x_pos) : [lt_y_pos:rd_y_pos)
                     for(int s = lt_y_pos; s < rd_y_pos; ++s)
-                        for(int e = lt_x_pos; e < rd_x_pos; ++e)
-                            if(feat_ptr[ch*feat_interval+w*s+e]>max_val) {
-                                max_val = feat_ptr[ch*feat_interval+w*s+e];
+                        for(int e = lt_x_pos; e < rd_x_pos; ++e) {
+                            float tmp = feats(0, ch, s, e);
+                            if(tmp>max_val) {
+                                max_val = tmp;
                                 max_pos_y = s;
                                 max_pos_x = e;
                             }
-                    
+                        }
                     // max value
-                    output_feat_ptr[output_feat_base+ch*roi_feat_num+output_suffix_pos] = max_val;
+                    output_feat_ptr[output_feat_base+sub_output_feat_base+output_suffix_pos] = max_val;
                     // max value' postion
-                    feat_pos_ptr[feat_pos_base+output_feat_pos_base+ch*2+0] = max_pos_y;
-                    feat_pos_ptr[feat_pos_base+output_feat_pos_base+ch*2+1] = max_pos_x;
+                    feat_pos_ptr[feat_pos_base+sub_feat_pos_base+output_suffix_pos*2+0] = max_pos_y;
+                    feat_pos_ptr[feat_pos_base+sub_feat_pos_base+output_suffix_pos*2+1] = max_pos_x;
                 }
             }
         }
@@ -172,15 +174,17 @@ void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array
     // iterator the grad one by one 
     for(int i = 0; i < bs_grad_output; ++i)
     {
-        for(int idx = 0; idx < num_feat_map; ++idx) {
-            for(int ch = 0; ch < c; ++ch) {
+        for(int ch = 0; ch < c; ++ch) {
+            for(int idx = 0; idx < num_feat_map; ++idx) {
+                int y = idx/roi_size;
+                int x = idx%roi_size;
+            
                 // the feat pos has recorded the position where the max value from during forwarding procedure
-                int max_feat_pos_y = feat_pos_cache(i, idx, ch, 0);
-                int max_feat_pos_x = feat_pos_cache(i, idx, ch, 1);
+                int max_feat_pos_y = feat_pos_cache(i, ch, idx, 0);
+                int max_feat_pos_x = feat_pos_cache(i, ch, idx, 1);
                 // add grad from upstream
-                //grad_input_ptr[ch*one_input_feat_inter+max_feat_pos_y*w+max_feat_pos_x]
-                grad_input_cache(0, ch, max_feat_pos_y, max_feat_pos_x) += grad_output_cache(i, ch, idx/roi_size, idx%roi_size);
-                //[output_grad_base+ch*one_output_grad_inter+idx];
+                grad_input_cache(0, ch, max_feat_pos_y, max_feat_pos_x) += \
+                grad_output_cache(i, ch, y, x);
             }
         }
     }
