@@ -16,6 +16,8 @@ running_args = Namespace(
                  lr_decay = 0.1,  # 1e-3 -> 1e-4
                  learning_rate=1e-3,
                  #------------------------------
+                 resnet_layers=101,
+                 #------------------------------
                  #train set
                  batch_size=1,
                  num_classes=20,
