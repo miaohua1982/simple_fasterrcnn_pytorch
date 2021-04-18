@@ -9,7 +9,6 @@ class TwoMLPHead(nn.Module):
         in_channels (int): number of input channels
         representation_size (int): size of the intermediate representation
     """
-
     def __init__(self, in_channels, representation_size):
         super(TwoMLPHead, self).__init__()
 
