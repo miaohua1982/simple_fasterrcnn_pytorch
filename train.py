@@ -11,6 +11,7 @@ from data.util import inverse_normalize
 from config.config import running_args
 from model.util.eval_ap import eval_detection_voc
 from model.backbone.vgg16 import decom_vgg16
+from model.backbone.resnet import decom_resnet
 from model.fasterrcnn.fasterrcnn import FasterRCNN
 from model.util.vis_tool import Visualizer, visdom_bbox
 from tqdm import tqdm
@@ -91,7 +92,10 @@ def train(opt):
     train_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=False)
 
     # model
-    backbone, classifier = decom_vgg16(opt)
+    if opt.backbone == 'vgg16':
+        backbone, classifier = decom_vgg16(opt)
+    if opt.backbone == 'resnet':
+        backbone, classifier = decom_resnet(opt)
     fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier)
     fasterrcnn = fasterrcnn.cuda() if t.cuda.is_available() else fasterrcnn
 
