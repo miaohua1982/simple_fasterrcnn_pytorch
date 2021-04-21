@@ -23,7 +23,7 @@ def calc_iou(proposal_boxes, gt_boxes):
     proposal_area = proposal_area.reshape(-1,1)
     gt_area = gt_area.reshape(1,-1)
 
-    iou = inter_area/(proposal_area+gt_area-inter_area)
+    iou = inter_area/(proposal_area+gt_area-inter_area+1e-7)
     # the shape of iou is num_proposal*num_gt
     return iou
     
@@ -53,7 +53,7 @@ def py_nms(boxes, scores, iou_thresh=0.5):
     result.extend(arg_idx)
     return np.array(result, dtype=np.int32)
     
-def py_nms_cbox(boxes, scores, iou_thresh=0.5):
+def cpp_nms(boxes, scores, iou_thresh=0.5):
     '''
     non maximum supress: the boxes which have lower socre than the biggest one, and iou value bigger than iou_thresh will be supressed
     note: well, the function's result is the same with from torchvision.ops import nms, but the speed is so not so good, 6x slower than library function
@@ -80,11 +80,11 @@ def py_nms_cbox(boxes, scores, iou_thresh=0.5):
     return np.array(result, dtype=np.int32)
 
 # test nms  
-rois = np.random.rand(12000,4)
-scores = np.random.rand(12000)
+rois = np.random.rand(12000,4).astype(np.float32)
+scores = np.random.rand(12000).astype(np.float32)
 
 keep1 = py_nms(rois, scores, 0.7)
-keep2 = py_nms_cbox(rois, scores, 0.7)
+keep2 = cpp_nms(rois, scores, 0.7)
 keep3 = m.nms(rois, scores, 0.7)
 keep4 = nms(t.from_numpy(rois), t.from_numpy(scores), 0.7)
 
@@ -93,13 +93,13 @@ assert np.all(keep2==keep3)
 assert np.all(keep3==keep4.numpy())
 # test speed in ipython
 #%timeit keep1 = py_nms(rois, scores, 0.7)
-#%timeit keep2 = py_nms_cbox(rois, scores, 0.7)
+#%timeit keep2 = cpp_nms(rois, scores, 0.7)
 #%timeit keep3 = m.nms(rois, scores, 0.7)
 #%timeit keep4 = nms(t.from_numpy(rois), t.from_numpy(scores), 0.7)
 
 
-pb = np.random.rand(12000,4)
-gb = np.random.rand(12000,4)
+pb = np.random.rand(12000,4).astype(np.float32)
+gb = np.random.rand(12000,4).astype(np.float32)
 iou1 = calc_iou(pb, gb)
 iou2 = m.calc_iou(pb, gb)
 assert iou1.shape == iou2.shape

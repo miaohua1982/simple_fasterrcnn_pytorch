@@ -2,6 +2,7 @@ import numpy as np
 import torch as t
 import nms_mh as mh
 from model.util.bbox_opt import calc_iou, calc_iou_torch
+from model.util.iou import calc_iou
 
 def nms(boxes, scores, iou_thresh=0.5):
     '''
