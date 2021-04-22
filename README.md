@@ -1,7 +1,7 @@
 # simple_fasterrcnn_pytorch
-This is a simplest implementation of fasterrcnn by pytorch when I learn the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](https://arxiv.org/abs/1506.01497)
+This is a simplest implementation of fasterrcnn by pytorch when I learn the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](https://arxiv.org/abs/1506.01497).
 I give the key operation iou/nms/roi_pool in details by python and c++ , not just calling the torchvision library, so you are able to see the implementation of details. By the way, you can
-compare the different implementation between mine and torchvision.opt.I use The PASCAL Visual Object Classes(VOC2007) to train & test the model, the highest score is almost 0.695.
+compare the different implementation between mine and torchvision.opt library. I use The PASCAL Visual Object Classes(VOC2007) to train & test the model, the highest score is almost 0.695.
 
 ## Table of Contents
 
@@ -30,7 +30,7 @@ What's more, the c++ version nms & roi_pool are written independently, and you c
  visdom>=0.1.8.9  
  pybind11>=2.6.2  
 
- The whole project is test on python3.6
+ The whole project has been test on python3.6
 
 ## Install
 To install nms & roi_pool you should have [pybind11](https://github.com/pybind/pybind11/tree/stable) installed.
@@ -106,8 +106,8 @@ python train.py
 ```
 >## Note
 >1.The parameters for training&testing is in file config.py which is under **config** floder, you can change any of them for testing.  
->2.Make sure the VOC2007 dataset is under **data** floder.But you can change the path by parameter **dataset_base_path** in config.py  
+>2.Make sure the VOC2007 dataset is under **data** floder.But you can change the path by parameter **dataset_base_path** in config.py, then you can place the dataset files in any place as you like.
 
 ## Scores
-The Score rightnow which I have achieved is a little above 0.695, which I use VGG16 as backbone.The weight is [here](to be continue soon)
+The Score right now which I have achieved is a little above 0.695, which I use VGG16 as backbone.The weight is [here](to be coming soon)
 Though I have added resnet family to the project, I haven't try it yet, and I will try it soon. By the way,you can use any other backbone, just have a look the floder **backbone** under **model** directory.When using different backbone, just remember to change the parameter **backbone** in file config.py.
