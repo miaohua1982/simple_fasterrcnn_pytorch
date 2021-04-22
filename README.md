@@ -1,7 +1,7 @@
 # simple_fasterrcnn_pytorch
-This is a simplest implementation of fasterrcnn by pytorch when I learn the paper Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks (https://arxiv.org/abs/1506.01497)
-I give the key operation iou/nms/roi_pool in details by python and c++ version, not just call the torchvision library, so you are able to see the implementation of details. By the way, you can
-compare the different implementation.I use The PASCAL Visual Object Classes(VOC2007) to train & test the model, the highest score is almost 0,695.
+This is a simplest implementation of fasterrcnn by pytorch when I learn the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](https://arxiv.org/abs/1506.01497)
+I give the key operation iou/nms/roi_pool in details by python and c++ , not just calling the torchvision library, so you are able to see the implementation of details. By the way, you can
+compare the different implementation between mine and torchvision.opt.I use The PASCAL Visual Object Classes(VOC2007) to train & test the model, the highest score is almost 0.695.
 
 ## Table of Contents
 
@@ -31,10 +31,11 @@ What's more, the c++ version nms & roi_pool are written independently, and you c
  pybind11>=2.6.2  
 
  The whole project is test on python3.6
-## Install
-To install nms & roi_pool you should have [pybind11](https://github.com/pybind/pybind11/tree/stable) [installed](https://pybind11.readthedocs.io/en/stable/installing.html)
 
-What you have to do is going into the util folder and run the following code:
+## Install
+To install nms & roi_pool you should have [pybind11](https://github.com/pybind/pybind11/tree/stable) installed.
+
+Then what you need to do is going into the **util** folder and run the following code:
 
 ```sh
 pip install ./nms_mh
@@ -45,8 +46,10 @@ pip install ./roi_pool_mh
 ```
 
 then you can use the library in other project not only in current one.  
+>Note:  
+ nms&roi_pool is implemented in c++, so on different os platform(windows, mac os, linux) it has different compilation method. The pybind11 also has different installation instructions, so just follow the steps [here](https://pybind11.readthedocs.io/en/stable/installing.html)  
 
-The example for nms. And the nms_mh package also contains the iou & giou & ciou & diou functions
+The following example is for using nms. And the nms_mh package also contains the iou & giou & ciou & diou functions.
 ```sh
 import numpy as np
 import nms_mh as m
@@ -56,3 +59,55 @@ scores = np.random.rand(12000).astype(np.float32)
 
 keep_list = m.nms(rois, scores, 0.7)
 ```
+or you can use different iou calculation algorithm by the parameter **iou_algo** of function **nms**, the default value for iou_algo is "iou", and it can be iou/giou/ciou/doiu.
+
+And the roi_pool:
+
+```sh
+from torchvision.ops import RoIPool
+import torch as t
+import roi_pool_mh as mh
+
+feat_x = t.rand(1, 2, 8, 8, requires_grad=True)
+rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
+
+scale=1.0/2
+roi_size=7
+roi_pooling_lib = RoIPool((roi_size,roi_size),  scale)
+roi_indices = t.zeros(rois.shape[0])
+indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
+feat1 = roi_pooling_lib(feat_x, indices_and_rois)
+
+roi_pooling = ROI_Pooling_C(roi_size, scale)
+feat2 = roi_pooling.apply(feat_x, rois)
+
+print(t.all(feat1==feat2))
+assert(t.all(feat1==feat2))
+
+# test backward
+f1 = feat1.sum()
+f1.backward()
+grad1 = feat_x.grad.clone()
+
+_ = feat_x.grad.zero_()
+f2 = feat2.sum()
+f2.backward()
+grad2 = feat_x.grad.clone()
+
+print(t.all(grad1==grad2))
+assert(t.all(grad1==grad2))
+```
+Here ROI_Pooling_C is a wrapper class calling the roi_pool_mh's roi pool forward&backward function.You can have a look at the file test.py under the roi_pool_mh foler for details.  
+
+## Usage
+All you need to do is just run:
+```sh
+python train.py
+```
+>## Note
+>1.The parameters for training&testing is in file config.py which is under **config** floder, you can change any of them for testing.  
+>2.Make sure the VOC2007 dataset is under **data** floder.But you can change the path by parameter **dataset_base_path** in config.py  
+
+## Scores
+The Score rightnow which I have achieved is a little above 0.695, which I use VGG16 as backbone.The weight is [here](to be continue soon)
+Though I have added resnet family to the project, I haven't try it yet, and I will try it soon. By the way,you can use any other backbone, just have a look the floder **backbone** under **model** directory.When using different backbone, just remember to change the parameter **backbone** in file config.py.
