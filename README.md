@@ -1,4 +1,9 @@
 # simple_fasterrcnn_pytorch
+
+![Version](https://img.shields.io/badge/version-0.0.1-brightgreen.svg "Version")
+![License](https://img.shields.io/badge/License-MIT-orange.svg "License")
+![OS](https://img.shields.io/badge/OS-windows%2Fmacos%2Flinux-blue.svg "OS")
+
 This is a simplest implementation of fasterrcnn by pytorch when I learn the paper [Faster R-CNN: Towards Real-Time Object Detection with Region Proposal Networks](https://arxiv.org/abs/1506.01497).
 I give the key operation iou/nms/roi_pool in details by python and c++ , not just calling the torchvision library, so you are able to see the implementation of details. By the way, you can
 compare the different implementation between mine and torchvision.opt library. I use The PASCAL Visual Object Classes(VOC2007) to train & test the model, the highest score is almost 0.695.
