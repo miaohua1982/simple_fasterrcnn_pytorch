@@ -20,7 +20,7 @@ def nms(boxes, scores, iou_thresh=0.5):
     
     while(arg_idx.shape[0]>=2):
         test_boxes = boxes[arg_idx]
-        boxes_iou = calc_iou(test_boxes[:1], test_boxes[1:])[0]   # the shape is 1*boxes.shape[0]-1
+        boxes_iou = mh.calc_iou(test_boxes[:1], test_boxes[1:])[0]   # the shape is 1*boxes.shape[0]-1
         n = test_boxes.shape[0]
         keep_list = np.arange(1,n)[boxes_iou<=iou_thresh]
         result.append(arg_idx[0])

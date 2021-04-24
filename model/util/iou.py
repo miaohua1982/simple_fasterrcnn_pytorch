@@ -1,5 +1,6 @@
 import numpy as np
 import torch as t
+import nms_mh as mh
 
 def get_center_xy(boxes):
     ws = boxes[:,[2]]-boxes[:,[0]]
@@ -144,9 +145,9 @@ def calc_iou_ciou(proposal_boxes, gt_boxes):
     # ciou ~ [-1,1]
     return ciou
     
-iou_routin_map = {'iou':calc_iou_iou, 'giou':calc_iou_giou, 'diou':calc_iou_diou, 'ciou':calc_iou_ciou}
+iou_routine_map = {'iou':calc_iou_iou, 'giou':calc_iou_giou, 'diou':calc_iou_diou, 'ciou':calc_iou_ciou}
 def calc_iou(proposal_boxes, gt_boxes, iou_algo='iou'):
-    iou = iou_routin_map[iou_algo](proposal_boxes, gt_boxes)
+    iou = iou_routine_map[iou_algo](proposal_boxes, gt_boxes)
     # the shape of iou is num_proposal*num_gt
     return iou
 

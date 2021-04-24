@@ -141,7 +141,7 @@ class FasterRCNN(nn.Module):
             gt_sample_labels = t.from_numpy(gt_sample_labels).long().cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_labels).long()
             
             n = roi_reg_locs.shape[0]
-            roi_locs = roi_reg_locs.view(n, -1, 4)[:,:,[1,0,3,2]]
+            roi_locs = roi_reg_locs.view(n, -1, 4) #[:,:,[1,0,3,2]]
             roi_locs = roi_locs[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
             gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
 
@@ -199,7 +199,7 @@ class FasterRCNN(nn.Module):
             loc_std, loc_mean = loc_std.cuda(), loc_mean.cuda()
 
         roi_reg_locs = roi_reg_locs*loc_std+loc_mean
-        roi_reg_locs = roi_reg_locs.view(-1, 4)[:,[1,0,3,2]]
+        roi_reg_locs = roi_reg_locs.view(-1, 4) #[:,[1,0,3,2]]
 
         rois = sample_rois.view(sample_rois.shape[0], 1, 4).expand((sample_rois.shape[0], self.n_class, 4))
         rois = rois.contiguous().view(-1, 4)
