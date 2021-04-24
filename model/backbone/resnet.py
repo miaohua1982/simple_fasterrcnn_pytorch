@@ -1,5 +1,5 @@
 from torch import nn
-from torchvision.model import resnet18, resnet34, resnet50, resnet101, resnet152
+from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
 
 
 class TwoMLPHead(nn.Module):

@@ -5,10 +5,11 @@
 #include<cmath>
 #include<vector>
 #include<string>
+#include<map>
 
 namespace py = pybind11;
 
-#defin PI 3.14159265f
+#define PI 3.14159265f
 
 int add(int i, int j) {
     return i + j;
@@ -228,11 +229,6 @@ void calc_iou_ciou(const float * const ptr1, const float * const ptr2, size_t si
 
 
 typedef void(*iou_calc)(const float * const, const float * const, size_t, size_t, float *);
-std::map<std::string, iou_calc> iou_routine;
-iou_routine["iou"] = calc_iou_iou;
-iou_routine["giou"] = calc_iou_giou;
-iou_routine["ciou"] = calc_iou_ciou;
-iou_routine["diou"] = calc_iou_diou;
 
 py::array_t<float> calc_iou(const py::array_t<float>& boxes1, const py::array_t<float>& boxes2, const std::string & iou_algo="iou") {
 
@@ -262,6 +258,12 @@ py::array_t<float> calc_iou(const py::array_t<float>& boxes1, const py::array_t<
     // giou ~[-1,1]
     // diou ~[-1,1]
     // ciou ~[-1,1]
+
+    std::map<std::string, iou_calc> iou_routine;
+    iou_routine["iou"] = calc_iou_iou;
+    iou_routine["giou"] = calc_iou_giou;
+    iou_routine["ciou"] = calc_iou_ciou;
+    iou_routine["diou"] = calc_iou_diou;
     iou_routine[iou_algo](ptr1, ptr2, size1, size2, ptr_result);
     // result shape is size of pb * size of gt
     return result;
@@ -282,6 +284,13 @@ py::array_t<int> nms(const py::array_t<float> boxes, const py::array_t<float> sc
         throw std::runtime_error("number of boxes must be equal to number of scores!");
     }
 
+
+    std::map<std::string, iou_calc> iou_routine;
+    iou_routine["iou"] = calc_iou_iou;
+    iou_routine["giou"] = calc_iou_giou;
+    iou_routine["ciou"] = calc_iou_ciou;
+    iou_routine["diou"] = calc_iou_diou;
+    
     // access numpy.ndarray
     float* boxes_ptr = (float*)boxes_buf.ptr;
     float* score_ptr = (float*)scores_buf.ptr;
@@ -332,7 +341,7 @@ PYBIND11_MODULE(nms_mh, m) {
     m.doc() = "non-maximum supress with pybind11";
 
     m.def("add", &add, "for test");
-    m.def("calc_iou", &calc_iou, "A function calculate iou between two array of boxes", py::arg("boxes1"), py::arg("boxes2"), py::arg("iou_algo")='iou');
+    m.def("calc_iou", &calc_iou, "A function calculate iou between two array of boxes", py::arg("boxes1"), py::arg("boxes2"), py::arg("iou_algo")="iou");
     m.def("nms", &nms, "A function do non-maximum supress for one boxes array", \
-          py::arg("boxes"), py::arg("scores"), py::arg("iou_thresh")=0.5, py::arg("iou_algo")='iou');
+          py::arg("boxes"), py::arg("scores"), py::arg("iou_thresh")=0.5, py::arg("iou_algo")="iour");
 }

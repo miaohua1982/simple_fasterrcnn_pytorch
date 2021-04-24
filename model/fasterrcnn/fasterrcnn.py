@@ -106,7 +106,7 @@ class FasterRCNN(nn.Module):
             # n's typical value is w//16*h//16*9, w&h is input image size, 16 is scaler, 9 is anchor box number
             # ***but note, there are only 256 sample is useful***, except that, in other position the value is -1 for label, 0 for loc
             # gt_boxes' shape [0] == 1, we only support one batch, loc & labels with type of np.array
-            loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0].numpy(), img_size)
+            loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0].cpu().numpy(), img_size)
             # the type of loc & labels is np.array, so we need to change it into tensor
             loc = t.from_numpy(loc).cuda() if t.cuda.is_available() else t.from_numpy(loc)
             labels = t.from_numpy(labels).long().cuda() if t.cuda.is_available() else t.from_numpy(labels).long()
@@ -126,7 +126,7 @@ class FasterRCNN(nn.Module):
         # gt_sample_labels: 128*1 labels including background as 0
         # gt_sample_roi_indices: 128*1, the indices for roi, default is 0
         if self.training:
-            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0].numpy(), gt_labels[0].numpy())
+            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
         else:
             sample_rois = rois
             gt_sample_roi_indices = np.zeros(sample_rois.shape[0], dtype=np.float32)
@@ -195,13 +195,16 @@ class FasterRCNN(nn.Module):
 
         loc_std = t.tensor(running_args.loc_normalize_std).repeat(self.n_class)
         loc_mean = t.tensor(running_args.loc_normalize_mean).repeat(self.n_class)
+        if t.cuda.is_available():
+            loc_std, loc_mean = loc_std.cuda(), loc_mean.cuda()
+
         roi_reg_locs = roi_reg_locs*loc_std+loc_mean
         roi_reg_locs = roi_reg_locs.view(-1, 4)[:,[1,0,3,2]]
 
         rois = sample_rois.view(sample_rois.shape[0], 1, 4).expand((sample_rois.shape[0], self.n_class, 4))
         rois = rois.contiguous().view(-1, 4)
 
-        pred_boxes = delta2box(rois.numpy(), roi_reg_locs.numpy())  # shape [sample_roi.shape[0]*n_class, 4], note n_class=fg_class+1
+        pred_boxes = delta2box(rois.cpu().numpy(), roi_reg_locs.cpu().numpy())  # shape [sample_roi.shape[0]*n_class, 4], note n_class=fg_class+1
         pred_boxes[:, 0::2] = (pred_boxes[:, 0::2]).clip(min=0, max=w)
         pred_boxes[:, 1::2] = (pred_boxes[:, 1::2]).clip(min=0, max=h)
         pred_boxes = pred_boxes.reshape(-1, self.n_class, 4)
@@ -211,11 +214,4 @@ class FasterRCNN(nn.Module):
         
         bbox, label, score = self._suppress(pred_boxes, pred_socres)
         
-        return bbox, label, score
-
-
-
-
-
-
-        
+        return bbox, label, score 

@@ -34,7 +34,7 @@ class RegionProposalNetwork(nn.Module):
         rois = []
         for i in range(n):
             # the score index is 1, we only need fg
-            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i].detach().numpy(), rpn_softmax_score[i][:,1].detach().numpy(), img_size, scale, self.training)
+            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i].detach().cpu().numpy(), rpn_softmax_score[i][:,1].detach().cpu().numpy(), img_size, scale, self.training)
             rois.append(roi)
         rois = np.stack(rois, axis=0)
         # rpn_score & rpn_reg_loc with type of t.tensor, rois with type of np.array

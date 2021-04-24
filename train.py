@@ -64,15 +64,18 @@ def eval(model, opt, test_num=5000):
     for idx, one_obj_ds in tqdm(enumerate(test_dataset)):
         img, boxes, labels, difficults, scale = one_obj_ds
         
+        if t.cuda.is_available():
+            img, boxes, labels = img.cuda(), boxes.cuda(), labels.cuda()
+
         with t.no_grad():
             pboxes, plabels, pscores = model.predict(img, boxes, labels, scale.item())
         
-        pred_boxes.append(pboxes.numpy())
-        pred_labels.append(plabels.numpy())
-        pred_scores.append(pscores.numpy())
-        gt_boxes.append(boxes[0].numpy())
-        gt_labels.append(labels[0].numpy())
-        gt_difficults.append(difficults[0].numpy())
+        pred_boxes.append(pboxes.cpu().numpy())
+        pred_labels.append(plabels.cpu().numpy())
+        pred_scores.append(pscores.cpu().numpy())
+        gt_boxes.append(boxes[0].cpu().numpy())
+        gt_labels.append(labels[0].cpu().numpy())
+        gt_difficults.append(difficults[0].cpu().numpy())
 
         if idx == test_num:
             break
@@ -126,6 +129,10 @@ def train(opt):
         for idx, one_obj_ds in tqdm(enumerate(train_dataset)):
             img, gt_boxes, gt_labels, _, scale = one_obj_ds
 
+
+            if t.cuda.is_available():
+                img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()
+
             optimizer.zero_grad()
 
             rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_reg_locs, roi_scores, \
@@ -144,6 +151,7 @@ def train(opt):
             avg_roi_score_loss += (roi_score_loss.item()-avg_roi_score_loss)/(idx+1)
             avg_total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss
 
+
             if (idx+1)%opt.plot_spot == 0:
                 if os.path.exists(opt.debug_file):
                     ipdb.set_trace()
@@ -156,10 +164,10 @@ def train(opt):
                 vis.plot('total_loss', avg_total_loss)
 
                 # plot groud truth bboxes
-                ori_img = inverse_normalize(img[0].numpy())
+                ori_img = inverse_normalize(img[0].cpu().numpy())
                 gt_img = visdom_bbox(ori_img,
-                                     gt_boxes[0].numpy(),
-                                     gt_labels[0].numpy())
+                                     gt_boxes[0].cpu().numpy(),
+                                     gt_labels[0].cpu().numpy())
                 vis.img('gt_img', gt_img)
 
                 # plot predicti bboxes
@@ -170,9 +178,9 @@ def train(opt):
                 # we need scale back
                 #pboxes = pboxes/scale
                 pred_img = visdom_bbox(ori_img,
-                                       pboxes.numpy(),
-                                       plabels.numpy(),
-                                       pscores.numpy())
+                                       pboxes.cpu().numpy(),
+                                       plabels.cpu().numpy(),
+                                       pscores.cpu().numpy())
                 vis.img('pred_img', pred_img)
 
         # eval
