@@ -1,8 +1,8 @@
 from __future__ import  absolute_import
 
 import numpy as np
-from model.util.bbox_opt import delta2box, calc_iou, box2delta
-
+from model.util.bbox_opt import delta2box, box2delta
+from model.util.iou import calc_iou
 
 class ProposalTargetCreator:
     def __init__(self, n_sample, pos_ratio, pos_iou_thresh, neg_iou_thresh_hi, neg_iou_thresh_lo, loc_normalize_mean, loc_normalize_std):

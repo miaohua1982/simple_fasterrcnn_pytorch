@@ -4,7 +4,7 @@ from collections import defaultdict
 import itertools
 import numpy as np
 
-from model.util.bbox_opt import calc_iou
+from model.util.iou import calc_iou
 
 # note, I copy the eval ap & map from other project
 

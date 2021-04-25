@@ -17,7 +17,7 @@ def decom_vgg16(opt):
     # the layers in classifier
     """
     (classifier): Sequential(
-        (0): Linear(in_features=25088, out_features=4096, bias=True)
+        (0): Linear(in_features=25088, out_features=4096, bias=True) here 25088=512*7*7
         (1): ReLU(inplace=True)
         (2): Dropout(p=0.5, inplace=False)
         (3): Linear(in_features=4096, out_features=4096, bias=True)

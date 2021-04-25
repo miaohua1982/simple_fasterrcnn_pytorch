@@ -1,7 +1,8 @@
 from __future__ import  absolute_import
 
 import numpy as np
-from model.util.bbox_opt import delta2box, calc_iou, box2delta
+from model.util.bbox_opt import delta2box, box2delta
+from model.util.iou import calc_iou
 
 
 class AnchorTargetCreator:

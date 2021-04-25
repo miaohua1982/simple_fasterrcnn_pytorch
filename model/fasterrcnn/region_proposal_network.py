@@ -21,6 +21,7 @@ class RegionProposalNetwork(nn.Module):
         normal_init(self.conv, 0, 0.01)
         normal_init(self.score, 0, 0.01)
         normal_init(self.loc, 0, 0.01)
+
     def forward(self, x, anchor_boxes, img_size, scale):
         n = x.shape[0]   # assert n==1
         feat = F.relu(self.conv(x))
@@ -28,13 +29,13 @@ class RegionProposalNetwork(nn.Module):
         rpn_reg_loc = self.loc(feat)
 
         rpn_score = rpn_score.permute(0, 2, 3, 1).contiguous().view(n, -1, 2)
-        rpn_reg_loc = rpn_reg_loc.permute(0, 2, 3, 1).contiguous().view(n, -1, 4)[:,:,[1,0,3,2]]
+        rpn_reg_loc = rpn_reg_loc.permute(0, 2, 3, 1).contiguous().view(n, -1, 4)  #[:,:,[1,0,3,2]]
         rpn_softmax_score = F.softmax(rpn_score, dim=2)
 
         rois = []
         for i in range(n):
             # the score index is 1, we only need fg
-            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i].detach().numpy(), rpn_softmax_score[i][:,1].detach().numpy(), img_size, scale, self.training)
+            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i].detach().cpu().numpy(), rpn_softmax_score[i][:,1].detach().cpu().numpy(), img_size, scale, self.training)
             rois.append(roi)
         rois = np.stack(rois, axis=0)
         # rpn_score & rpn_reg_loc with type of t.tensor, rois with type of np.array

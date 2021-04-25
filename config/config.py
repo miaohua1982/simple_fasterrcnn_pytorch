@@ -15,6 +15,10 @@ running_args = Namespace(
                  weight_decay = 0.0005,
                  lr_decay = 0.1,  # 1e-3 -> 1e-4
                  learning_rate=1e-3,
+                 # backbone model selection
+                 backbone = "vgg16",
+                 #------------------------------
+                 resnet_layers=101,
                  #------------------------------
                  #train set
                  batch_size=1,
