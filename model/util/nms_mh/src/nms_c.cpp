@@ -230,7 +230,7 @@ void calc_iou_ciou(const float * const ptr1, const float * const ptr2, size_t si
 
 typedef void(*iou_calc)(const float * const, const float * const, size_t, size_t, float *);
 
-py::array_t<float> calc_iou(const py::array_t<float>& boxes1, const py::array_t<float>& boxes2, const std::string & iou_algo="iou") {
+py::array_t<float> calc_iou(const py::array_t<float>& boxes1, const py::array_t<float>& boxes2, const std::string iou_algo="iou") {
 
     py::buffer_info boxes1_buf = boxes1.request();
     py::buffer_info boxes2_buf = boxes2.request();
@@ -269,7 +269,7 @@ py::array_t<float> calc_iou(const py::array_t<float>& boxes1, const py::array_t<
     return result;
 }
 
-py::array_t<int> nms(const py::array_t<float> boxes, const py::array_t<float> scores, float iou_thresh=0.5, const std::string & iou_algo="iou")
+py::array_t<int> nms(const py::array_t<float> boxes, const py::array_t<float> scores, float iou_thresh=0.5, const std::string iou_algo="iou")
 {
     py::buffer_info boxes_buf = boxes.request();
     py::buffer_info scores_buf = scores.request();
@@ -343,5 +343,5 @@ PYBIND11_MODULE(nms_mh, m) {
     m.def("add", &add, "for test");
     m.def("calc_iou", &calc_iou, "A function calculate iou between two array of boxes", py::arg("boxes1"), py::arg("boxes2"), py::arg("iou_algo")="iou");
     m.def("nms", &nms, "A function do non-maximum supress for one boxes array", \
-          py::arg("boxes"), py::arg("scores"), py::arg("iou_thresh")=0.5, py::arg("iou_algo")="iour");
+          py::arg("boxes"), py::arg("scores"), py::arg("iou_thresh")=0.5, py::arg("iou_algo")="iou");
 }

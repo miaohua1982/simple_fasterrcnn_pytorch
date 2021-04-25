@@ -145,7 +145,7 @@ def calc_iou_ciou(proposal_boxes, gt_boxes):
     # ciou ~ [-1,1]
     return ciou
     
-iou_routine_map = {'iou':calc_iou_iou, 'giou':calc_iou_giou, 'diou':calc_iou_diou, 'ciou':calc_iou_ciou}
+iou_routine_map = {'iou':mh.calc_iou, 'giou':calc_iou_giou, 'diou':calc_iou_diou, 'ciou':calc_iou_ciou}
 def calc_iou(proposal_boxes, gt_boxes, iou_algo='iou'):
     iou = iou_routine_map[iou_algo](proposal_boxes, gt_boxes)
     # the shape of iou is num_proposal*num_gt
