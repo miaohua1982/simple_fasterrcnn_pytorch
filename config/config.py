@@ -8,7 +8,7 @@ running_args = Namespace(
                  #-----------------------------
                  # model laod & save
                  load_model_path=None,
-                 save_model_path="model_storage/model_lstm_%s_%.6f.pth",
+                 save_model_path="model_storage/model_%s_%.6f.pth",
                  # param for optimizer
                  # 0.0005 in origin paper but 0.0001 in tf-faster-rcnn
                  use_adam = False,
