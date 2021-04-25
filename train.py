@@ -129,7 +129,6 @@ def train(opt):
         for idx, one_obj_ds in tqdm(enumerate(train_dataset)):
             img, gt_boxes, gt_labels, _, scale = one_obj_ds
 
-
             if t.cuda.is_available():
                 img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()
 

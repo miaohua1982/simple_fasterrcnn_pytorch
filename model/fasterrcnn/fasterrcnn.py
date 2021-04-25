@@ -4,8 +4,8 @@ import torch as t
 import numpy as np
 from torch import nn
 from torch.nn import functional as F
-
-from torchvision.ops import nms
+import nms_mh as mh             # my implementaton of nms & calc_iou
+from torchvision.ops import nms # torchvision's nms function
 
 from model.util.bbox_opt import gen_anchor_boxes, shift_anchor_boxes, delta2box
 from config.config import running_args
@@ -167,7 +167,7 @@ class FasterRCNN(nn.Module):
             cls_bbox_l = cls_bbox_l[mask]
             prob_l = prob_l[mask]
             # do nms
-            keep = nms(cls_bbox_l, prob_l, self.nms_thresh)
+            keep = mh.nms(cls_bbox_l, prob_l, self.nms_thresh)
 
             bbox.append(cls_bbox_l[keep])
             label.append(t.tensor(one_cls - 1).repeat(len(keep)))  # set class label index back to 0 based, 

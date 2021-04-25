@@ -3,6 +3,7 @@ from __future__ import  absolute_import
 import torch as t
 import numpy as np
 from torchvision.ops import nms
+import nms_mh as mh
 from model.util.nms import nms as my_nms
 from model.util.bbox_opt import delta2box
 
@@ -62,8 +63,8 @@ class ProposalCreator:
         #               t.from_numpy(scores).cuda() if t.cuda.is_available() else t.from_numpy(scores), \
         #               self.nms_thresh)
         #rois = rois[keep_idx[:post_num].numpy()]
-
-        keep_idx = my_nms(rois, scores, self.nms_thresh)
+        # here I use my own nms c++ implementation
+        keep_idx = mh.nms(rois, scores, self.nms_thresh)
         rois = rois[keep_idx[:post_num]]
         return rois
 

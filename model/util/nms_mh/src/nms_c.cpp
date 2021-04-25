@@ -59,10 +59,8 @@ void calc_iou_iou(const float * const ptr1, const float * const ptr2, size_t siz
            float hs = max(0.0f, rd_y-lt_y);
            float inter_area = ws*hs;
 
-           float iou = 0.0f;
-           if((area1+area2-inter_area)>0.000001f) 
-              iou = inter_area/(area1+area2-inter_area);
-           ptr_result[i*size1 + j] = iou;
+           float iou = inter_area/(area1+area2-inter_area+0.0000001f);
+           ptr_result[i*size2 + j] = iou;
        }
     }
 }
@@ -104,7 +102,7 @@ void calc_iou_giou(const float * const ptr1, const float * const ptr2, size_t si
            float con_area = (rd_x-lt_x)*(rd_y-lt_y)+0.000001f;   // avoid to devide zero
            float giou = iou-(con_area-(area1+area2-inter_area))/con_area;
 
-           ptr_result[i*size1 + j] = giou;
+           ptr_result[i*size2 + j] = giou;
        }
     }
 
@@ -156,11 +154,10 @@ void calc_iou_diou(const float * const ptr1, const float * const ptr2, size_t si
            // the value of d-iou
            float diou = iou-dis_center/dis_con;
 
-           ptr_result[i*size1 + j] = diou;
+           ptr_result[i*size2 + j] = diou;
        }
     }
 }
-
 
 void calc_iou_ciou(const float * const ptr1, const float * const ptr2, size_t size1, size_t size2, float * ptr_result) {
     for(int i = 0; i < size1; ++i) {
@@ -222,7 +219,7 @@ void calc_iou_ciou(const float * const ptr1, const float * const ptr2, size_t si
            // the value of c-iou
            float ciou = iou-dis_center/dis_con-alpha*v;
 
-           ptr_result[i*size1 + j] = ciou;
+           ptr_result[i*size2 + j] = ciou;
        }
     }
 }
@@ -258,7 +255,6 @@ py::array_t<float> calc_iou(const py::array_t<float>& boxes1, const py::array_t<
     // giou ~[-1,1]
     // diou ~[-1,1]
     // ciou ~[-1,1]
-
     std::map<std::string, iou_calc> iou_routine;
     iou_routine["iou"] = calc_iou_iou;
     iou_routine["giou"] = calc_iou_giou;
