@@ -7,7 +7,8 @@ from torch.nn import functional as F
 import nms_mh as mh             # my implementaton of nms & calc_iou
 from torchvision.ops import nms # torchvision's nms function
 
-from model.util.bbox_opt import gen_anchor_boxes, shift_anchor_boxes, delta2box
+from model.util.bbox_opt_torch import gen_anchor_boxes, shift_anchor_boxes, delta2box
+
 from config.config import running_args
 from model.fasterrcnn.region_proposal_network import RegionProposalNetwork
 from model.fasterrcnn.roi_header import RoIHeader

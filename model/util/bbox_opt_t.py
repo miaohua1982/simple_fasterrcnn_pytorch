@@ -1,4 +1,5 @@
 import torch as t
+import math
 
 def gen_anchor_boxes(ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], base_size=16):
     base_box = []
@@ -6,7 +7,7 @@ def gen_anchor_boxes(ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], base_size=16
     ctx, cty = base_size/2.0, base_size/2.0
 
     for r in ratios:
-        w = np.sqrt(area/r)
+        w = (area/r)**0.5
         h = w*r
         for s in anchor_scales:
             sw = w*s
@@ -15,7 +16,7 @@ def gen_anchor_boxes(ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], base_size=16
             base_box.append(new_box)
 
     base_box = t.tensor(base_box, dtype=t.float32)
-    return base_box
+    return base_box.cuda() if t.cuda.is_available() else base_box
 
 def shift_anchor_boxes(base_anchor_boxes, h, w, feat_stride): 
     '''
@@ -39,7 +40,7 @@ def shift_anchor_boxes(base_anchor_boxes, h, w, feat_stride):
 
     pre_defined_anchor_boxes = base_anchor_boxes.view((1,A,4))+shift.view((K,1,4))
     pre_defined_anchor_boxes = pre_defined_anchor_boxes.view((K*A, 4))
-    return pre_defined_anchor_boxes.float()
+    return pre_defined_anchor_boxes.float().cuda() if t.cuda.is_available() else pre_defined_anchor_boxes.float()
 
 
 def delta2box(base_boxes, deltas):
@@ -66,7 +67,7 @@ def box2delta(predict_boxes, gt_boxes):
     scale_w = t.log(gt_boxes_xywh[:,[2]]/predict_boxes_xywh[:,[2]])
     scale_h = t.log(gt_boxes_xywh[:,[3]]/predict_boxes_xywh[:,[3]])
 
-    deltas = t.cat([dx, dy, scale_w, scale_h], dim=1).astype(t.float32)
+    deltas = t.cat([dx, dy, scale_w, scale_h], dim=1).float()
     return deltas
 
 def xxyy2xywh(box):
@@ -76,7 +77,7 @@ def xxyy2xywh(box):
     crt_x = box[:,[0]]+w/2.0
     crt_y = box[:,[1]]+h/2.0
 
-    new_box = t.cat([crt_x, crt_y, w, h], dim=1).astype(np.float32)
+    new_box = t.cat([crt_x, crt_y, w, h], dim=1).float()
     return new_box
 
 def xywh2xxyy(box):
@@ -86,8 +87,5 @@ def xywh2xxyy(box):
     rd_x = box[:,[0]]+box[:,[2]]/2.0
     rd_y = box[:,[1]]+box[:,[3]]/2.0
 
-    new_box = t.cat([lp_x, lp_y, rd_x, rd_y], dim=1).astype(np.float32)
+    new_box = t.cat([lp_x, lp_y, rd_x, rd_y], dim=1).float()
     return new_box
-
-if __name__ == '__main__':
-    print(gen_anchor_boxes_t())

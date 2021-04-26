@@ -88,8 +88,3 @@ def xywh2xxyy(box):
 
     new_box = np.concatenate([lp_x, lp_y, rd_x, rd_y], axis=1).astype(np.float32)
     return new_box
-
-
-
-if __name__ == '__main__':
-    print(gen_anchor_boxes())
