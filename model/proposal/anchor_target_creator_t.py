@@ -3,7 +3,14 @@ from __future__ import  absolute_import
 import torch as t
 from model.util.bbox_opt_t import delta2box, box2delta
 from model.util.iou_t import calc_iou
+from functools import wraps 
 
+def nograd(f):
+    @wraps
+    def new_f(*args,**kwargs):
+        with t.no_grad():
+           return f(*args,**kwargs)
+    return new_f
 
 class AnchorTargetCreator:
     def __init__(self, n_sample, pos_ratio, neg_iou_thresh, pos_iou_thresh):
@@ -12,6 +19,7 @@ class AnchorTargetCreator:
         self.neg_iou_thresh = neg_iou_thresh
         self.pos_iou_thresh = pos_iou_thresh
 
+    @nograd
     def __call__(self, anchor_boxes, gt_boxes, img_size):
         '''
         anchor_boxes(np.array): the predefined anchor boxes in feature map 

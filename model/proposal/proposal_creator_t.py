@@ -2,9 +2,15 @@ from __future__ import  absolute_import
 
 import torch as t
 from torchvision.ops import nms
-from model.util.nms_t import nms as my_nms
 from model.util.bbox_opt_t import delta2box
+from functools import wraps 
 
+def nograd(f):
+    @wraps
+    def new_f(*args,**kwargs):
+        with t.no_grad():
+           return f(*args,**kwargs)
+    return new_f
 
 class ProposalCreator:
     def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh):
@@ -15,6 +21,7 @@ class ProposalCreator:
         self.min_roi_size = min_roi_size     # default value is 16, you can change it in config.py
         self.nms_thresh = nms_thresh         # default value is 0.7, you can change it in config.py
 
+    @nograd
     def __call__(self, anchors, rpn_reg_loc, rpn_score, img_size, scale, is_training):
         '''
         Args:

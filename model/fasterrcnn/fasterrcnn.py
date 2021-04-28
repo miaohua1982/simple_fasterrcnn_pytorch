@@ -12,6 +12,14 @@ from model.fasterrcnn.region_proposal_network import RegionProposalNetwork
 from model.fasterrcnn.roi_header import RoIHeader
 from model.proposal.anchor_target_creator import AnchorTargetCreator
 from model.proposal.proposal_target_creator import ProposalTargetCreator
+from functools import wraps 
+
+def nograd(f):
+    @wraps
+    def new_f(*args,**kwargs):
+        with t.no_grad():
+           return f(*args,**kwargs)
+    return new_f
 
 def _smooth_l1_loss(x, t, in_weight, sigma):
     sigma2 = sigma ** 2
@@ -181,7 +189,8 @@ class FasterRCNN(nn.Module):
         label = t.cat(label, dim=0).int()
         score = t.cat(score, dim=0).float()
         return bbox, label, score
-
+    
+    @nograd
     def predict(self, img, gt_boxes, gt_labels, scale, present='evaluate'):
         if present == 'visualize':
             self.nms_thresh = 0.3

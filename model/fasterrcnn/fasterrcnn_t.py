@@ -5,7 +5,6 @@ import numpy as np
 from torch import nn
 from torch.nn import functional as F
 from torchvision.ops import nms # torchvision's nms function
-
 from model.util.bbox_opt_t import gen_anchor_boxes, shift_anchor_boxes, delta2box
 
 from config.config import running_args
@@ -13,6 +12,14 @@ from model.fasterrcnn.region_proposal_network_t import RegionProposalNetwork
 from model.fasterrcnn.roi_header import RoIHeader
 from model.proposal.anchor_target_creator_t import AnchorTargetCreator
 from model.proposal.proposal_target_creator_t import ProposalTargetCreator
+from functools import wraps
+
+def nograd(f):
+    @wraps
+    def new_f(*args,**kwargs):
+        with t.no_grad():
+           return f(*args,**kwargs)
+    return new_f
 
 def _smooth_l1_loss(x, t, in_weight, sigma):
     sigma2 = sigma ** 2
@@ -108,8 +115,7 @@ class FasterRCNN(nn.Module):
             # ***but note, there are only 256 sample is useful***, except that, in other position the value is -1 for label, 0 for loc
             # gt_boxes' shape [0] == 1, we only support one batch, loc & labels with type of np.array
             # anchor target creator need no grad
-            with t.no_grad():
-                loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0], img_size)
+            loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0], img_size)
             # rpn loss
             # score cross entropy loss, ignore index = -1, labels only contain 0(bg),1(fg),-1(ignore)
             rpn_score_loss = F.cross_entropy(rpn_score, labels, ignore_index=-1)
@@ -127,8 +133,7 @@ class FasterRCNN(nn.Module):
         # gt_sample_roi_indices: 128*1, the indices for roi, default is 0
         if self.training:
             # no grad is needed for proposal target creator
-            with t.no_grad():
-                sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0], gt_labels[0]) #gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
+            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0], gt_labels[0]) #gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
         else:
             sample_rois = rois
             gt_sample_roi_indices = t.zeros(sample_rois.shape[0], dtype=t.float32) #np.zeros(sample_rois.shape[0], dtype=np.float32)
@@ -182,6 +187,7 @@ class FasterRCNN(nn.Module):
         score = t.cat(score, dim=0).float()
         return bbox, label, score
 
+    @nograd
     def predict(self, img, gt_boxes, gt_labels, scale, present='evaluate'):
         if present == 'visualize':
             self.nms_thresh = 0.3

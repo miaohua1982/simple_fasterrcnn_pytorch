@@ -3,6 +3,14 @@ from __future__ import  absolute_import
 import torch as t
 from model.util.bbox_opt_t import delta2box, box2delta
 from model.util.iou_t import calc_iou
+from functools import wraps 
+
+def nograd(f):
+    @wraps
+    def new_f(*args,**kwargs):
+        with t.no_grad():
+           return f(*args,**kwargs)
+    return new_f
 
 class ProposalTargetCreator:
     def __init__(self, n_sample, pos_ratio, pos_iou_thresh, neg_iou_thresh_hi, neg_iou_thresh_lo, loc_normalize_mean, loc_normalize_std):
@@ -14,6 +22,7 @@ class ProposalTargetCreator:
         self.loc_normalize_mean = t.tensor(loc_normalize_mean, dtype=t.float) # default value is [0,0,0,0], you can change it in config.py
         self.loc_normalize_std = t.tensor(loc_normalize_std, dtype=t.float)   # default value is [0.1, 0.1, 0.2, 0.2], you can change it in config.py
 
+    @nograd
     def __call__(self, rois, gt_boxes, gt_labels):
         # 1. dataset for choosing *n_sample* samples, note **gt_boxes** can also be choosen, 将roi与gt box合并作为备选对象，统一记录为roi。（这里注意，128的可选范围不仅仅是roi）
         rois = t.cat([rois, gt_boxes], dim=0)

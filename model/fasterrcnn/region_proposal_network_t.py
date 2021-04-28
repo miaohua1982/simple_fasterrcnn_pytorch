@@ -37,8 +37,7 @@ class RegionProposalNetwork(nn.Module):
 
         assert n==1, "we only support batch size=1"
         # the score index is 1, we only need fg
-        with t.no_grad():
-            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i], rpn_softmax_score[i][:,1], img_size, scale, self.training)
+        roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i], rpn_softmax_score[i][:,1], img_size, scale, self.training)
         rois = rois.unsqueeze(dim=0)
         # rpn_score & rpn_reg_loc & rois with type of t.tensor
         # with shape (n,-1, 2 or 4), though the value of n is 1
