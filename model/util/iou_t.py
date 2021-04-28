@@ -153,6 +153,15 @@ def calc_iou_ciou(proposal_boxes, gt_boxes):
     
 iou_routine_map = {'iou':calc_iou_iou, 'giou':calc_iou_giou, 'diou':calc_iou_diou, 'ciou':calc_iou_ciou}
 def calc_iou(proposal_boxes, gt_boxes, iou_algo='iou'):
+    '''
+    to calc the iou & giou & diou & ciou
+    Args:
+       proposal_boxes(tensor): the region for proposals, in shape `[R, 4]`, R denotes the number of proposal boxes
+       gt_boxes(tensor): the region for ground truth, in shape `[R, 4]`, T denotes the number of ground truth boxes
+       iou_algo(string): the value should be 'iou', 'giou', 'ciou', 'diou', the default value is 'iou'
+    Returns:
+       iou(tensor): the iou values for proposal boxes & gt boxes, in shape [R,T]
+    '''
     iou = iou_routine_map[iou_algo](proposal_boxes, gt_boxes)
     # the shape of iou is num_proposal*num_gt
     return iou

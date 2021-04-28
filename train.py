@@ -13,6 +13,7 @@ from model.util.eval_ap import eval_detection_voc
 from model.backbone.vgg16 import decom_vgg16
 from model.backbone.resnet import decom_resnet
 from model.fasterrcnn.fasterrcnn import FasterRCNN
+from model.fasterrcnn.fasterrcnn_t import FasterRCNN as FasterRCNN_T
 from model.util.vis_tool import Visualizer, visdom_bbox
 from tqdm import tqdm
 
@@ -99,7 +100,11 @@ def train(opt):
         backbone, classifier = decom_vgg16(opt)
     if opt.backbone == 'resnet':
         backbone, classifier = decom_resnet(opt)
-    fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier)
+    
+    if opt.all_torch:
+        fasterrcnn = FasterRCNN_T(opt.num_classes, backbone, classifier)
+    else:
+        fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier)
     fasterrcnn = fasterrcnn.cuda() if t.cuda.is_available() else fasterrcnn
 
     # optimizer

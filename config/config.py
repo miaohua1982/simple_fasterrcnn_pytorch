@@ -6,6 +6,9 @@ running_args = Namespace(
                  # random seed setup
                  seed=1337,
                  #-----------------------------
+                 #the flag for wether using torch version anchor target creator & proposal creator & proposal target creator or numpy version
+                 all_torch=False,
+                 #-----------------------------
                  # model laod & save
                  load_model_path=None,
                  save_model_path="model_storage/model_%s_%.6f.pth",
@@ -28,7 +31,7 @@ running_args = Namespace(
                  feat_stride=16,
                  plot_spot=100,
                  debug_file='/tmp/debug',
-                 vis_env='fastercnn_mh',
+                 vis_env='fastercnn_mh_t',
                  #------------------------------
                  dataset_base_path="./data/VOCdevkit/VOC2007/",
                  min_img_size = 600,

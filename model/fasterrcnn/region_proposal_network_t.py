@@ -1,9 +1,9 @@
 from __future__ import  absolute_import
 
-import numpy as np
+import torch as t
 from torch import nn
 from torch.nn import functional  as F
-from model.proposal.proposal_creator import ProposalCreator
+from model.proposal.proposal_creator_t import ProposalCreator
 from config.config import running_args
 
 class RegionProposalNetwork(nn.Module):
@@ -35,14 +35,13 @@ class RegionProposalNetwork(nn.Module):
         rpn_reg_loc = rpn_reg_loc.permute(0, 2, 3, 1).contiguous().view(n, -1, 4)  #[:,:,[1,0,3,2]]
         rpn_softmax_score = F.softmax(rpn_score, dim=2)
 
-        rois = []
-        for i in range(n):
-            # the score index is 1, we only need fg
-            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i].detach().cpu().numpy(), rpn_softmax_score[i][:,1].detach().cpu().numpy(), img_size, scale, self.training)
-            rois.append(roi)
-        rois = np.stack(rois, axis=0)
-        # rpn_score & rpn_reg_loc with type of tensor, rois with type of np.array
-        # with shape (n,-1, 2 or 4)
+        assert n==1, "we only support batch size=1"
+        # the score index is 1, we only need fg
+        with t.no_grad():
+            roi = self.proposal_creator(anchor_boxes, rpn_reg_loc[i], rpn_softmax_score[i][:,1], img_size, scale, self.training)
+        rois = rois.unsqueeze(dim=0)
+        # rpn_score & rpn_reg_loc & rois with type of t.tensor
+        # with shape (n,-1, 2 or 4), though the value of n is 1
         return rpn_score, rpn_reg_loc, rois   
 
 def normal_init(m, mean, stddev, truncated=False):

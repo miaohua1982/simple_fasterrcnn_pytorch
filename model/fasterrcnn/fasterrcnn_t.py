@@ -4,14 +4,15 @@ import torch as t
 import numpy as np
 from torch import nn
 from torch.nn import functional as F
-import nms_mh as mh             # my implementaton of nms & calc_iou
-from model.util.bbox_opt import gen_anchor_boxes, shift_anchor_boxes, delta2box
+from torchvision.ops import nms # torchvision's nms function
+
+from model.util.bbox_opt_t import gen_anchor_boxes, shift_anchor_boxes, delta2box
 
 from config.config import running_args
-from model.fasterrcnn.region_proposal_network import RegionProposalNetwork
+from model.fasterrcnn.region_proposal_network_t import RegionProposalNetwork
 from model.fasterrcnn.roi_header import RoIHeader
-from model.proposal.anchor_target_creator import AnchorTargetCreator
-from model.proposal.proposal_target_creator import ProposalTargetCreator
+from model.proposal.anchor_target_creator_t import AnchorTargetCreator
+from model.proposal.proposal_target_creator_t import ProposalTargetCreator
 
 def _smooth_l1_loss(x, t, in_weight, sigma):
     sigma2 = sigma ** 2
@@ -40,7 +41,7 @@ def smooth_l1_loss(pred_loc, gt_loc, gt_label, sigma=1):
 class FasterRCNN(nn.Module):
     def __init__(self, n_fg_class, backbone, classifier):
         super(FasterRCNN, self).__init__()
-        # img information extractor, which could be vgg16, vgg19, resnet51
+        # img information extractor, which is always vgg16, vgg19, resnet51
         self.backbone = backbone
         
         # classifier, accept roi_width*roi_height resolution feature map, to generate score & reg_loc for every *n_fg_class+1* classes(1 for background)
@@ -83,6 +84,7 @@ class FasterRCNN(nn.Module):
         assert x.shape[0] == 1, 'we only support batch size=1'
         # image size
         img_size = (x.shape[2], x.shape[3]) # height & width
+        
         # feature extract
         feat = self.backbone(x)
 
@@ -90,7 +92,7 @@ class FasterRCNN(nn.Module):
         n, ch, h, w = feat.shape
         pre_defined_anchor_boxes = shift_anchor_boxes(self.base_anchor_boxes, h, w, self.feat_stride) # shape(n, 4), n=h*w*9
 
-        # rpn, 
+        # rpn
         # rpn_score & rpn_reg_loc with shape (n,1) & (n,2), n=feat.h*feat.w*9
         # rois with shape (n,4), n is at most 6000(at train mode) or 300(at test mode), rois is np.array
         rpn_score, rpn_reg_loc, rois = self.rpn(feat, pre_defined_anchor_boxes, img_size, scale)
@@ -105,10 +107,9 @@ class FasterRCNN(nn.Module):
             # n's typical value is w//16*h//16*9, w&h is input image size, 16 is scaler, 9 is anchor box number
             # ***but note, there are only 256 sample is useful***, except that, in other position the value is -1 for label, 0 for loc
             # gt_boxes' shape [0] == 1, we only support one batch, loc & labels with type of np.array
-            loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0].cpu().numpy(), img_size)
-            # the type of loc & labels is np.array, so we need to change it into tensor
-            loc = t.from_numpy(loc).cuda() if t.cuda.is_available() else t.from_numpy(loc)
-            labels = t.from_numpy(labels).long().cuda() if t.cuda.is_available() else t.from_numpy(labels).long()
+            # anchor target creator need no grad
+            with t.no_grad():
+                loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0], img_size)
             # rpn loss
             # score cross entropy loss, ignore index = -1, labels only contain 0(bg),1(fg),-1(ignore)
             rpn_score_loss = F.cross_entropy(rpn_score, labels, ignore_index=-1)
@@ -118,22 +119,22 @@ class FasterRCNN(nn.Module):
             rpn_score_loss = 0
             rpn_reg_loss = 0
         
-        # proposal target creator, all its outputs 'type are np.array
+        # proposal target creator, all its outputs'type are np.array
         # choose samples for roi head network
         # sample_rois 128*4(xy,xy), rois
         # gt_sample_locs: 128*4(xywh scale & offset), delta between sample rois and gt boxes 
         # gt_sample_labels: 128*1 labels including background as 0
         # gt_sample_roi_indices: 128*1, the indices for roi, default is 0
         if self.training:
-            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
+            # no grad is needed for proposal target creator
+            with t.no_grad():
+                sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0], gt_labels[0]) #gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
         else:
             sample_rois = rois
-            gt_sample_roi_indices = np.zeros(sample_rois.shape[0], dtype=np.float32)
+            gt_sample_roi_indices = t.zeros(sample_rois.shape[0], dtype=t.float32) #np.zeros(sample_rois.shape[0], dtype=np.float32)
         # head network output, classes
         # roi_reg_locs shape:[128,classes*4]
         # roi_scores shape:[128,classes]
-        sample_rois = t.from_numpy(sample_rois).cuda() if t.cuda.is_available() else t.from_numpy(sample_rois)
-        gt_sample_roi_indices = t.from_numpy(gt_sample_roi_indices).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_roi_indices)
         roi_reg_locs, roi_scores = self.head(feat, sample_rois, gt_sample_roi_indices)
         
         if self.training:
@@ -144,10 +145,9 @@ class FasterRCNN(nn.Module):
             # if not, we assume the network generates coordinates is like [x1, y1, x2 ,y2]
             # it seems no differences between the two operation
             roi_locs = roi_reg_locs.view(n, -1, 4) #[:,:,[1,0,3,2]]
-            # according to gt labels, pick the gt box from (class_num+1) , the shape will be changed to n*4
-            gt_sample_labels = t.from_numpy(gt_sample_labels).long().cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_labels).long()
+            # according to gt labels, pick the predicted box from (class_num+1) , the shape will be changed to n*4
+            gt_sample_labels = gt_sample_labels.long()
             roi_locs = roi_locs[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
-            gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
 
             roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, running_args.roi_sigma)
             roi_score_loss = F.cross_entropy(roi_scores, gt_sample_labels)
@@ -171,7 +171,7 @@ class FasterRCNN(nn.Module):
             cls_bbox_l = cls_bbox_l[mask]
             prob_l = prob_l[mask]
             # do nms
-            keep = mh.nms(cls_bbox_l.cpu().numpy(), prob_l.cpu().numpy(), self.nms_thresh)
+            keep = nms(cls_bbox_l, prob_l, self.nms_thresh)
 
             bbox.append(cls_bbox_l[keep])
             label.append(t.tensor(one_cls - 1).repeat(len(keep)))  # set class label index back to 0 based, 
@@ -208,16 +208,15 @@ class FasterRCNN(nn.Module):
         # if not, we assume the network generates coordinates is like [x1, y1, x2 ,y2]
         # it seems no differences between the two operation
         roi_reg_locs = roi_reg_locs.view(-1, 4) #[:,[1,0,3,2]]
-        # expand the sample_rois' shape from n*4 to n*n_class*4
+
         rois = sample_rois.view(sample_rois.shape[0], 1, 4).expand((sample_rois.shape[0], self.n_class, 4))
         rois = rois.contiguous().view(-1, 4)
         # shape [sample_roi.shape[0]*n_class, 4], note n_class=fg_class+1
-        pred_boxes = delta2box(rois.cpu().numpy(), roi_reg_locs.cpu().numpy())
-        pred_boxes[:, 0::2] = (pred_boxes[:, 0::2]).clip(min=0, max=w)
-        pred_boxes[:, 1::2] = (pred_boxes[:, 1::2]).clip(min=0, max=h)
-        pred_boxes = pred_boxes.reshape(-1, self.n_class, 4)
-        pred_boxes = t.from_numpy(pred_boxes).cuda() if t.cuda.is_available() else t.from_numpy(pred_boxes)
-
+        pred_boxes = delta2box(rois, roi_reg_locs)
+        pred_boxes[:, 0::2] = (pred_boxes[:, 0::2]).clamp(min=0, max=w)
+        pred_boxes[:, 1::2] = (pred_boxes[:, 1::2]).clamp(min=0, max=w)
+        pred_boxes = pred_boxes.view(-1, self.n_class, 4)
+        # get class confidence score, with shape n*n_class
         pred_socres = F.softmax(roi_scores, dim=1)
         
         bbox, label, score = self._suppress(pred_boxes, pred_socres)
