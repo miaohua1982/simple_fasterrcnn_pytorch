@@ -1,4 +1,3 @@
-
 #include<pybind11/pybind11.h>
 #include<pybind11/numpy.h>
 #include<cmath>
@@ -154,7 +153,7 @@ void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array
     // the buffer info for array
     py::buffer_info grad_output_buf = grad_output.request();
     py::buffer_info grad_input_buf = grad_input.request();
-    // the channel & height & widht for grad input buf, the same shape with feat_x in forward function
+    // the channel & height & width for grad input buf, the same shape with feat_x in forward function
     if (grad_input_buf.shape[0] != 1)  // input grad's shape is assumed to be 1*c*h*w, a typical value is 1*512*37*50
     {
         throw std::runtime_error("we only support batch==1 right now!");
@@ -193,6 +192,7 @@ void roi_pooling_backward(const py::array_t<float>& grad_output, const py::array
 PYBIND11_MODULE(roi_pool_mh, m) {
     m.doc() = "roi pooling forward & backward with pybind11";
 
+	m.attr("__version__") = "0.0.1";
     m.def("add", &add, "for test");
     m.def("roi_pooling_forward", &roi_pooling_forward, "A function do roi pooling forward operation according to input features & rois");
     m.def("roi_pooling_backward", &roi_pooling_backward, "A function do roi pooling backward operation according to grad output");
