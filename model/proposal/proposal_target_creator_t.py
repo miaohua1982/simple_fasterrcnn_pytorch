@@ -6,7 +6,7 @@ from model.util.iou_t import calc_iou
 from functools import wraps 
 
 def nograd(f):
-    @wraps
+    #@wraps
     def new_f(*args,**kwargs):
         with t.no_grad():
            return f(*args,**kwargs)
@@ -21,6 +21,9 @@ class ProposalTargetCreator:
         self.neg_iou_thresh_lo = neg_iou_thresh_lo   # default value is 0.0, you can change it in config.py
         self.loc_normalize_mean = t.tensor(loc_normalize_mean, dtype=t.float) # default value is [0,0,0,0], you can change it in config.py
         self.loc_normalize_std = t.tensor(loc_normalize_std, dtype=t.float)   # default value is [0.1, 0.1, 0.2, 0.2], you can change it in config.py
+        if t.cuda.is_available():
+            self.loc_normalize_mean = self.loc_normalize_mean.cuda()
+            self.loc_normalize_std = self.loc_normalize_std.cuda()
 
     @nograd
     def __call__(self, rois, gt_boxes, gt_labels):
@@ -58,7 +61,7 @@ class ProposalTargetCreator:
 
         gt_sample_locs = (gt_sample_locs - self.loc_normalize_mean) / self.loc_normalize_std
 
-        gt_sample_roi_indices = t.zeros(self.n_sample, dtype=t.float32)
+        gt_sample_roi_indices = t.zeros(self.n_sample, dtype=t.float32).cuda() if t.cuda.is_available() else t.zeros(self.n_sample, dtype=t.float32)
 
         return sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices
 

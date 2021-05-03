@@ -6,7 +6,7 @@ from model.util.bbox_opt_t import delta2box
 from functools import wraps 
 
 def nograd(f):
-    @wraps
+    #@wraps
     def new_f(*args,**kwargs):
         with t.no_grad():
            return f(*args,**kwargs)

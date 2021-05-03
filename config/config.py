@@ -7,7 +7,7 @@ running_args = Namespace(
                  seed=1337,
                  #-----------------------------
                  #the flag for wether using torch version anchor target creator & proposal creator & proposal target creator or numpy version
-                 all_torch=False,
+                 all_torch=True,
                  #-----------------------------
                  # model laod & save
                  load_model_path=None,

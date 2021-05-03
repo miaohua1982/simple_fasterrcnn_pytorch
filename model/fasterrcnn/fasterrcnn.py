@@ -15,7 +15,7 @@ from model.proposal.proposal_target_creator import ProposalTargetCreator
 from functools import wraps 
 
 def nograd(f):
-    @wraps
+    #@wraps
     def new_f(*args,**kwargs):
         with t.no_grad():
            return f(*args,**kwargs)

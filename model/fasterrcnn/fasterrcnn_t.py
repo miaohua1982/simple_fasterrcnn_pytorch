@@ -15,7 +15,7 @@ from model.proposal.proposal_target_creator_t import ProposalTargetCreator
 from functools import wraps
 
 def nograd(f):
-    @wraps
+    #@wraps
     def new_f(*args,**kwargs):
         with t.no_grad():
            return f(*args,**kwargs)
@@ -136,7 +136,7 @@ class FasterRCNN(nn.Module):
             sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0], gt_labels[0]) #gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
         else:
             sample_rois = rois
-            gt_sample_roi_indices = t.zeros(sample_rois.shape[0], dtype=t.float32) #np.zeros(sample_rois.shape[0], dtype=np.float32)
+            gt_sample_roi_indices = t.zeros(sample_rois.shape[0], dtype=t.float32).cuda() if t.cuda.is_available() else t.zeros(sample_rois.shape[0], dtype=t.float32)
         # head network output, classes
         # roi_reg_locs shape:[128,classes*4]
         # roi_scores shape:[128,classes]

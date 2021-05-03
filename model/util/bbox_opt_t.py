@@ -34,13 +34,14 @@ def shift_anchor_boxes(base_anchor_boxes, h, w, feat_stride):
     grid_y, grid_x = t.meshgrid(y,x)
     
     shift = t.cat([grid_x.flatten().view(-1,1), grid_y.flatten().view(-1,1), grid_x.flatten().view(-1,1), grid_y.flatten().view(-1,1)], dim=1)
-    
+    shift = shift.cuda() if t.cuda.is_available() else shift
+
     A = base_anchor_boxes.shape[0]
     K = shift.shape[0]
 
     pre_defined_anchor_boxes = base_anchor_boxes.view((1,A,4))+shift.view((K,1,4))
     pre_defined_anchor_boxes = pre_defined_anchor_boxes.view((K*A, 4))
-    return pre_defined_anchor_boxes.float().cuda() if t.cuda.is_available() else pre_defined_anchor_boxes.float()
+    return pre_defined_anchor_boxes.float()
 
 
 def delta2box(base_boxes, deltas):

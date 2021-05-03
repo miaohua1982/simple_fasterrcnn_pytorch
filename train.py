@@ -68,8 +68,7 @@ def eval(model, opt, test_num=5000):
         if t.cuda.is_available():
             img, boxes, labels = img.cuda(), boxes.cuda(), labels.cuda()
 
-        with t.no_grad():
-            pboxes, plabels, pscores = model.predict(img, boxes, labels, scale.item())
+        pboxes, plabels, pscores = model.predict(img, boxes, labels, scale.item())
         
         pred_boxes.append(pboxes.cpu().numpy())
         pred_labels.append(plabels.cpu().numpy())
@@ -176,8 +175,7 @@ def train(opt):
 
                 # plot predicti bboxes
                 fasterrcnn.eval()
-                with t.no_grad():
-                    pboxes, plabels, pscores = fasterrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
+                pboxes, plabels, pscores = fasterrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
                 fasterrcnn.train()
                 # we need scale back
                 #pboxes = pboxes/scale

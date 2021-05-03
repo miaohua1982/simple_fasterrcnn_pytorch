@@ -6,7 +6,7 @@ from model.util.iou_t import calc_iou
 from functools import wraps 
 
 def nograd(f):
-    @wraps
+    #@wraps
     def new_f(*args,**kwargs):
         with t.no_grad():
            return f(*args,**kwargs)
@@ -41,6 +41,7 @@ class AnchorTargetCreator:
         gt_target_max_iou_arg = t.where(iou_mat == gt_target_max_iou_val)[0]
         # 3. setup the label
         labels = t.tensor([-1]*inside_boxes.shape[0])
+        labels = labels.cuda() if t.cuda.is_available() else labels
         # 4. set label to be 0, if the max_iou <= neg_iou_thresh, 将max_iou小于neg_iou_thresh（=0.3）的，其标签置为0
         labels[target_gt_max_iou_val<self.neg_iou_thresh]=0
         # 5. set every gt box's max iou anchor target to be 1, 对于每个gt box，与其有最大IOU值的anchor box对应标签设置为1
@@ -69,9 +70,9 @@ class AnchorTargetCreator:
         loc = box2delta(anchor_target, argmax_boxes)
 
         # 10. pack result to shape (n*), n's typical value is w//16*h//16*9, w&h is input image size, 16 is scaler, 9 is anchor box number
-        new_labels = t.tensor([-1]*n_anchor)
+        new_labels = t.tensor([-1]*n_anchor).cuda() if t.cuda.is_available() else t.tensor([-1]*n_anchor)
         new_labels[keep_idx] = labels
-        new_loc = t.zeros((n_anchor,4))
+        new_loc = t.zeros((n_anchor,4)).cuda() if t.cuda.is_available() else t.zeros((n_anchor,4))
         new_loc[keep_idx[labels>0]] = loc
 
         return new_loc, new_labels
