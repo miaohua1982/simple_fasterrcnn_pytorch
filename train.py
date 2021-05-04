@@ -96,14 +96,14 @@ def train(opt):
 
     # model
     if opt.backbone == 'vgg16':
-        backbone, classifier, bckbone_channels = decom_vgg16(opt)
+        backbone, classifier, backbone_channels = decom_vgg16(opt)
     if opt.backbone == 'resnet':
-        backbone, classifier, bckbone_channels = decom_resnet(opt)
+        backbone, classifier, backbone_channels = decom_resnet(opt)
     
     if opt.all_torch:
-        fasterrcnn = FasterRCNN_T(opt.num_classes, backbone, classifier)
+        fasterrcnn = FasterRCNN_T(opt.num_classes, backbone, classifier, backbone_channels)
     else:
-        fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier)
+        fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier, backbone_channels)
     fasterrcnn = fasterrcnn.cuda() if t.cuda.is_available() else fasterrcnn
 
     # optimizer

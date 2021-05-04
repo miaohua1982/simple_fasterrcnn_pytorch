@@ -1,4 +1,5 @@
 from torch import nn
+from torch.nn import functional as F
 from torchvision.models import resnet18, resnet34, resnet50, resnet101, resnet152
 
 
