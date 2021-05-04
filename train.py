@@ -104,6 +104,8 @@ def train(opt):
         fasterrcnn = FasterRCNN_T(opt.num_classes, backbone, classifier, backbone_channels)
     else:
         fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier, backbone_channels)
+    if opt.load_model_path is not None:
+        fasterrcnn.load_state_dict(t.load(opt.load_model_path))
     fasterrcnn = fasterrcnn.cuda() if t.cuda.is_available() else fasterrcnn
 
     # optimizer
@@ -200,6 +202,9 @@ def train(opt):
             cur_eval_map = result['map']
             save_path = running_args.save_model_path % (time.strftime("%m%d_%H%M"), cur_eval_map)
             t.save(fasterrcnn.state_dict(), save_path)
+            opt.load_model_path = save_path
+        elif result['map'] < cur_eval_map     # make sure current one is the best one
+            fasterrcnn.load_state_dict(t.load(opt.load_model_path))
 
         # decay the model's learning rate
         if epoch == 9:  # it is a trick
