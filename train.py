@@ -96,9 +96,9 @@ def train(opt):
 
     # model
     if opt.backbone == 'vgg16':
-        backbone, classifier = decom_vgg16(opt)
+        backbone, classifier, bckbone_channels = decom_vgg16(opt)
     if opt.backbone == 'resnet':
-        backbone, classifier = decom_resnet(opt)
+        backbone, classifier, bckbone_channels = decom_resnet(opt)
     
     if opt.all_torch:
         fasterrcnn = FasterRCNN_T(opt.num_classes, backbone, classifier)

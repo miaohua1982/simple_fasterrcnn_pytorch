@@ -56,7 +56,7 @@ def decom_resnet(opt):
     features = nn.Sequential(model.conv1, model.bn1, model.relu, model.maxpool, model.layer1, model.layer2, model.layer3)
     # we have roi pool, do not need avgpool
     # two layers classifier
-    classifier = TwoMLPHead(in_features=out_channels*opt.roi_size*opt.roi_size, out_features=4096, bias=True)
+    classifier = TwoMLPHead(in_channels=out_channels*opt.roi_size*opt.roi_size, representation_size=4096)
 
     # freeze parameters of layers
     # here i just freeze parameters to layer1, make model to fine tune layer2, layer3
@@ -67,4 +67,4 @@ def decom_resnet(opt):
         for p in layer.parameters():
             p.requires_grad = False
 
-    return features, classifier
+    return features, classifier, out_channels

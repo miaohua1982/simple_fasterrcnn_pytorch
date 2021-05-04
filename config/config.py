@@ -7,6 +7,8 @@ running_args = Namespace(
                  seed=1337,
                  #-----------------------------
                  #the flag for wether using torch version anchor target creator & proposal creator & proposal target creator or numpy version
+                 #when True, means all operations are done on gpu
+                 #which is a little bit speedy than False
                  all_torch=True,
                  #-----------------------------
                  # model laod & save
@@ -18,8 +20,8 @@ running_args = Namespace(
                  weight_decay = 0.0005,
                  lr_decay = 0.1,  # 1e-3 -> 1e-4
                  learning_rate=1e-3,
-                 # backbone model selection
-                 backbone = "vgg16",
+                 # backbone model selection, vgg16 or resnet
+                 backbone = "resnet",
                  #------------------------------
                  resnet_layers=101,
                  #------------------------------

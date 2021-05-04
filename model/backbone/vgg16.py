@@ -39,4 +39,4 @@ def decom_vgg16(opt):
         for p in layer.parameters():
             p.requires_grad = False
 
-    return nn.Sequential(*features), classifier
+    return nn.Sequential(*features), classifier, 512

@@ -46,7 +46,7 @@ def smooth_l1_loss(pred_loc, gt_loc, gt_label, sigma=1):
     return loc_loss
 
 class FasterRCNN(nn.Module):
-    def __init__(self, n_fg_class, backbone, classifier):
+    def __init__(self, n_fg_class, backbone, classifier, backbone_channels):
         super(FasterRCNN, self).__init__()
         # img information extractor, which could be vgg16, vgg19, resnet51
         self.backbone = backbone
@@ -55,7 +55,7 @@ class FasterRCNN(nn.Module):
         self.classifier = classifier
         
         # the rpn network
-        self.rpn = RegionProposalNetwork(input_channels=512, mid_channels=512, n_per_anchor=running_args.n_base_anchors_num)
+        self.rpn = RegionProposalNetwork(input_channels=backbone_channels, mid_channels=512, n_per_anchor=running_args.n_base_anchors_num)
         
         # the roi header network
         # the class including the bg
