@@ -23,12 +23,12 @@ running_args = Namespace(
                  # backbone model selection, vgg16 or resnet
                  backbone = "resnet",
                  #------------------------------
-                 resnet_layers=50,
+                 resnet_layers=101,
                  #------------------------------
                  #train set
                  batch_size=1,
                  num_classes=20,
-                 num_epochs=13,
+                 num_epochs=14,
                  use_drop=False,
                  feat_stride=16,
                  plot_spot=100,

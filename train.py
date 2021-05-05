@@ -203,7 +203,7 @@ def train(opt):
             save_path = running_args.save_model_path % (time.strftime("%m%d_%H%M"), cur_eval_map)
             t.save(fasterrcnn.state_dict(), save_path)
             opt.load_model_path = save_path
-        elif result['map'] < cur_eval_map     # make sure current one is the best one
+        elif result['map'] < cur_eval_map:     # make sure current one is the best one
             fasterrcnn.load_state_dict(t.load(opt.load_model_path))
 
         # decay the model's learning rate
