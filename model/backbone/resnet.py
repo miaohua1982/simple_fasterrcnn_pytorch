@@ -69,3 +69,36 @@ def decom_resnet(opt):
             p.requires_grad = False
 
     return features, classifier, out_channels
+
+
+class ResnetBackbone(nn.Module):
+    def __init__(self, backbone):
+        super(ResnetBackbone, self).__init__()
+        
+        assert backbone == 'resnet101'
+        
+        model = resnet101(pretrained=True)
+
+        self._stage2 = model.layer1
+        self._stage3 = model.layer2
+        self._stage4 = model.layer3
+        self._stage5 = model.layer4
+
+        self.p2_conv = nn.Conv2d(in_channels=256, out_channels=256, kernel_size=1, stride=1)
+        self.p3_conv = nn.Conv2d(in_channels=512, out_channels=256, kernel_size=1, stride=1)
+        self.p4_conv = nn.Conv2d(in_channels=1024, out_channels=256, kernel_size=1, stride=1)
+        self.p5_conv = nn.Conv2d(in_channels=2048, out_channels=256, kernel_size=1, stride=1)
+
+    def forward(self, X):
+        raw_p2 = self._stage2(X)
+        raw_p3 = self._stage3(raw_p2)
+        raw_p4 = self._stage3(raw_p3)
+        raw_p5 = self._stage3(raw_p4)
+
+        p5 = self.p5_conv(raw_p5)
+        p4 = F.upsample(p5, scale_factor=2, mode='bilinear')+self.p4_conv(raw_P4)
+        p3 = F.upsample(p4, scale_factor=2, mode='bilinear')+self.p3_conv(raw_P3)
+        p2 = F.upsample(p3, scale_factor=2, mode='bilinear')+self.p2_conv(raw_P2)
+
+        return p2, p3, p4, p5
+
