@@ -2,13 +2,13 @@ import torch as t
 from torch import nn
 
 class FeaturePyramidNetwork(nn.Module):
-    def __init__(self, output_channels=256):
+    def __init__(self, backbone_output_channels, output_channels=256):
         super(FeaturePyramidNetwork, self).__init__()
 
-        self.p2_conv = nn.Conv2d(in_channels=256, out_channels=output_channels, kernel_size=3, stride=3, padding=1)
-        self.p3_conv = nn.Conv2d(in_channels=256, out_channels=output_channels, kernel_size=3, stride=3, padding=1)
-        self.p4_conv = nn.Conv2d(in_channels=256, out_channels=output_channels, kernel_size=3, stride=3, padding=1)
-        self.p5_conv = nn.Conv2d(in_channels=256, out_channels=output_channels, kernel_size=3, stride=3, padding=1)
+        self.p2_conv = nn.Conv2d(in_channels=backbone_output_channels, out_channels=output_channels, kernel_size=3, stride=1, padding=1)
+        self.p3_conv = nn.Conv2d(in_channels=backbone_output_channels, out_channels=output_channels, kernel_size=3, stride=1, padding=1)
+        self.p4_conv = nn.Conv2d(in_channels=backbone_output_channels, out_channels=output_channels, kernel_size=3, stride=1, padding=1)
+        self.p5_conv = nn.Conv2d(in_channels=backbone_output_channels, out_channels=output_channels, kernel_size=3, stride=1, padding=1)
 
         self.p6_downsample = nn.MaxPool2d(kernel_size=1, stride=2)
 
@@ -30,7 +30,7 @@ class FeaturePyramidNetwork(nn.Module):
 
 def normal_init(m, mean, stddev, truncated=False):
     """
-    weight initalizer: truncated normal and random normal.
+    weight initializer: truncated normal and random normal.
     """
     # x is a parameter
     if truncated:

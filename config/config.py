@@ -76,6 +76,13 @@ class Fasterrcnn_Config(ConfigBase):
 
 class Maskrcnn_Config(ConfigBase):
     backbone = "resnet101"
+    num_classes = 80
+    image_size = (1024,1024)
+    backbone_stride = [4,8,16,32,64]
+    anchor_ratios = [0.5,1,2]
+    anchor_scales = [32,64,128,256,512]
+    # generate anchor box for every cell in feature map
+    anchor_stride = 1 
 
 running_args = Fasterrcnn_Config()
 

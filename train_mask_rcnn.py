@@ -6,14 +6,13 @@ import time
 import torch as t
 import numpy as np
 from torch.utils import data as data_
-from data.voc_dataset import Voc_Dataset
+from data.coco_dataset import Coco_Dataset
 from data.util import inverse_normalize
-from config.config import running_args
+from config.config import mask_running_args
 from model.util.eval_ap import eval_detection_voc
-from model.backbone.vgg16 import decom_vgg16
-from model.backbone.resnet import decom_resnet
-from model.fasterrcnn.fasterrcnn import FasterRCNN
-from model.fasterrcnn.fasterrcnn_t import FasterRCNN as FasterRCNN_T
+from model.backbone.resnet import ResnetBackbone
+from model.maskrcnn.maskrcnn import MaskRCNN
+
 from model.util.vis_tool import Visualizer, visdom_bbox
 from tqdm import tqdm
 
@@ -25,7 +24,7 @@ def set_seed_everywhere(seed, cuda):
 
 def get_optimizer(opt, model):
     """
-    return optimizer, It could be overwriten if you want to specify 
+    return optimizer, It could be overwritten if you want to specify 
     special optimizer
     """
     lr = opt.learning_rate
@@ -91,25 +90,19 @@ def eval(model, opt, test_num=5000):
 
 def train(opt):
     # load dataset
-    dataset = Voc_Dataset(opt.dataset_base_path, min_size=opt.min_img_size, max_size=opt.max_img_size, split='trainval')
+    dataset = Coco_Dataset(opt.dataset_base_path, min_size=opt.min_img_size, max_size=opt.max_img_size, split='trainval')
     train_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=False)
 
     # model
-    if opt.backbone == 'vgg16':
-        backbone, classifier, backbone_channels = decom_vgg16(opt)
-    if opt.backbone == 'resnet':
-        backbone, classifier, backbone_channels = decom_resnet(opt)
-    
-    if opt.all_torch:
-        fasterrcnn = FasterRCNN_T(opt.num_classes, backbone, classifier, backbone_channels)
-    else:
-        fasterrcnn = FasterRCNN(opt.num_classes, backbone, classifier, backbone_channels)
+    # backbone
+    backbone = ResnetBackbone(opt.backbone)
+    maskrcnn = MaskRCNN(opt.num_classes, backbone, backbone_channels=256)
     if opt.load_model_path is not None:
-        fasterrcnn.load_state_dict(t.load(opt.load_model_path))
-    fasterrcnn = fasterrcnn.cuda() if t.cuda.is_available() else fasterrcnn
+        maskrcnn.load_state_dict(t.load(opt.load_model_path))
+    maskrcnn = maskrcnn.cuda() if t.cuda.is_available() else maskrcnn
 
     # optimizer
-    optimizer = get_optimizer(opt, fasterrcnn)
+    optimizer = get_optimizer(opt, maskrcnn)
 
     # visdom
     vis = Visualizer(env=opt.vis_env)
@@ -120,7 +113,7 @@ def train(opt):
     cur_lr = opt.learning_rate
 
     # set train mode
-    fasterrcnn.train()
+    maskrcnn.train()
 
     # train
     t.autograd.set_detect_anomaly(True)
@@ -130,6 +123,7 @@ def train(opt):
         avg_roi_reg_loss = 0.0
         avg_rpn_score_loss = 0.0
         avg_roi_score_loss = 0.0
+        avg_roi_mask_loss = 0.0
         avg_total_loss = 0.0
         # one epoch
         for idx, one_obj_ds in tqdm(enumerate(train_dataset)):
@@ -139,23 +133,17 @@ def train(opt):
                 img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()
 
             optimizer.zero_grad()
-
-            rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_reg_locs, roi_scores, \
-            sample_rois = fasterrcnn(img, gt_boxes, gt_labels, scale.item())
-            #print('rpn loc loss %.6f, rpn cls loss %.6f, roi loc loss %.6f, roi cls loss %.6f'%(rpn_reg_loss, rpn_score_loss, roi_reg_loss, roi_score_loss))
-
-            total_loss = rpn_score_loss+rpn_reg_loss+roi_score_loss+roi_reg_loss
-            
+            rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_mask_loss = maskrcnn(img, gt_boxes, gt_labels, scale.item())
+            total_loss = rpn_score_loss+rpn_reg_loss+roi_score_loss+roi_reg_loss+roi_mask_loss
             total_loss.backward()
-
             optimizer.step()
             
             avg_rpn_reg_loss += (rpn_reg_loss.item()-avg_rpn_reg_loss)/(idx+1) 
             avg_roi_reg_loss += (roi_reg_loss.item()-avg_roi_reg_loss)/(idx+1) 
             avg_rpn_score_loss += (rpn_score_loss.item()-avg_rpn_score_loss)/(idx+1)
             avg_roi_score_loss += (roi_score_loss.item()-avg_roi_score_loss)/(idx+1)
-            avg_total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss
-
+            avg_roi_mask_loss += (roi_mask_loss.item()-avg_roi_mask_loss)/(idx+1)
+            avg_total_loss = avg_rpn_reg_loss+avg_roi_reg_loss+avg_rpn_score_loss+avg_roi_score_loss+avg_roi_mask_loss
 
             if (idx+1)%opt.plot_spot == 0:
                 if os.path.exists(opt.debug_file):
@@ -166,9 +154,10 @@ def train(opt):
                 vis.plot('rpn_cls_loss', avg_rpn_score_loss)
                 vis.plot('roi_loc_loss', avg_roi_reg_loss)
                 vis.plot('roi_cls_loss', avg_roi_score_loss)
+                vis.plot('roi_mask_loss', avg_roi_score_loss)
                 vis.plot('total_loss', avg_total_loss)
 
-                # plot groud truth bboxes
+                # plot ground truth bboxes
                 ori_img = inverse_normalize(img[0].cpu().numpy())
                 gt_img = visdom_bbox(ori_img,
                                      gt_boxes[0].cpu().numpy(),
@@ -176,9 +165,9 @@ def train(opt):
                 vis.img('gt_img', gt_img)
 
                 # plot predicti bboxes
-                fasterrcnn.eval()
-                pboxes, plabels, pscores = fasterrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
-                fasterrcnn.train()
+                maskrcnn.eval()
+                pboxes, plabels, pscores = maskrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
+                maskrcnn.train()
                 # we need scale back
                 #pboxes = pboxes/scale
                 pred_img = visdom_bbox(ori_img,
@@ -188,7 +177,7 @@ def train(opt):
                 vis.img('pred_img', pred_img)
 
         # eval
-        result = eval(fasterrcnn, opt)
+        result = eval(maskrcnn, opt)
         # py visdom plot
         vis.plot('eval_map', result['map'])
         # log
@@ -200,18 +189,17 @@ def train(opt):
         # save model if needed
         if result['map'] > cur_eval_map:
             cur_eval_map = result['map']
-            save_path = running_args.save_model_path % (time.strftime("%m%d_%H%M"), cur_eval_map)
-            t.save(fasterrcnn.state_dict(), save_path)
+            save_path = mask_running_args.save_model_path % (time.strftime("%m%d_%H%M"), cur_eval_map)
+            t.save(maskrcnn.state_dict(), save_path)
             opt.load_model_path = save_path
         elif result['map'] < cur_eval_map:     # make sure current one is the best one
-            fasterrcnn.load_state_dict(t.load(opt.load_model_path))
+            maskrcnn.load_state_dict(t.load(opt.load_model_path))
 
         # decay the model's learning rate
         if epoch == 9:  # it is a trick
-            optimizer = scale_lr(optimizer, running_args.lr_decay)
-            cur_lr *= running_args.lr_decay
+            optimizer = scale_lr(optimizer, mask_running_args.lr_decay)
+            cur_lr *= mask_running_args.lr_decay
         
-
 if __name__ == '__main__':
-    set_seed_everywhere(running_args.seed, t.cuda.is_available())
-    train(running_args)
+    set_seed_everywhere(mask_running_args.seed, t.cuda.is_available())
+    train(mask_running_args)

@@ -160,7 +160,7 @@ class FasterRCNN(nn.Module):
             roi_score_loss = 0
             roi_reg_loss = 0
 
-        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_reg_locs, roi_scores, sample_rois
+        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss #, roi_reg_locs, roi_scores, sample_rois
 
     def _suppress(self, raw_cls_bbox, raw_prob):
         bbox = list()

@@ -5,10 +5,11 @@ import numpy as np
 from torch import nn
 from torch.nn import functional as F
 import nms_mh as mh             # my implementaton of nms & calc_iou
-from model.util.bbox_opt import gen_anchor_boxes, shift_anchor_boxes, delta2box
+from model.util.bbox_opt import gen_pyramid_anchors, delta2box
 
-from config.config import running_args
-from model.fasterrcnn.region_proposal_network import RegionProposalNetwork
+from config.config import mask_running_args
+from model.maskrcnn.feature_pyramid_network import FeaturePyramidNetwork
+from model.maskrcnn.region_proposal_network import RegionProposalNetwork
 from model.fasterrcnn.roi_header import RoIHeader
 from model.proposal.anchor_target_creator import AnchorTargetCreator
 from model.proposal.proposal_target_creator import ProposalTargetCreator
@@ -45,36 +46,35 @@ def smooth_l1_loss(pred_loc, gt_loc, gt_label, sigma=1):
     loc_loss /= ((gt_label >= 0).sum().float()) # ignore gt_label==-1 for rpn_loss
     return loc_loss
 
-class FasterRCNN(nn.Module):
-    def __init__(self, n_fg_class, backbone, classifier, backbone_channels):
-        super(FasterRCNN, self).__init__()
-        # img information extractor, which could be vgg16, vgg19, resnet51
+class MaskRCNN(nn.Module):
+    def __init__(self, n_fg_class, backbone, backbone_channels):
+        super(MaskRCNN, self).__init__()
+        # img information extractor, which could be resnet family
         self.backbone = backbone
         
-        # classifier, accept roi_width*roi_height resolution feature map, to generate score & reg_loc for every *n_fg_class+1* classes(1 for background)
-        self.classifier = classifier
-        
+        # the fpn network
+        self.fpn = FeaturePyramidNetwork(backbone_output_channels=backbone_channels, output_channels=256)
         # the rpn network
-        self.rpn = RegionProposalNetwork(input_channels=backbone_channels, mid_channels=512, n_per_anchor=running_args.n_base_anchors_num)
+        self.rpn = RegionProposalNetwork(input_channels=256, mid_channels=512, n_per_anchor=mask_running_args.n_base_anchors_num)
         
         # the roi header network
         # the class including the bg
-        self.head = RoIHeader(n_class=n_fg_class+1, roi_size=running_args.roi_size, spatial_scale=running_args.spatial_scale, classifier=classifier)
+        self.head = RoIHeader(n_class=n_fg_class+1, roi_size=mask_running_args.roi_size, spatial_scale=mask_running_args.spatial_scale, classifier=classifier)
         
         # anchor target creator for training rpn network
         # its task is to choose *n_sample*(256) sample from anchor boxes
-        self.anchor_target_creator = AnchorTargetCreator(n_sample=running_args.n_sample, pos_ratio=running_args.pos_ratio, \
-                                                         neg_iou_thresh=running_args.neg_iou_thresh, pos_iou_thresh=running_args.pos_iou_thresh)
+        self.anchor_target_creator = AnchorTargetCreator(n_sample=mask_running_args.n_sample, pos_ratio=mask_running_args.pos_ratio, \
+                                                         neg_iou_thresh=mask_running_args.neg_iou_thresh, pos_iou_thresh=mask_running_args.pos_iou_thresh)
         
         # proposal target creator for training roi head network
         # its task is to choose *n_sample*(128) sample from proposal rois which is generated from rpn's proposal creator
-        self.proposal_target_creator = ProposalTargetCreator(n_sample=running_args.n_roi_sample, pos_ratio=running_args.pos_roi_ratio, \
-                                                          pos_iou_thresh=running_args.pos_roi_iou_thresh, neg_iou_thresh_hi=running_args.neg_iou_thresh_hi, \
-                                                          neg_iou_thresh_lo=running_args.neg_iou_thresh_lo, loc_normalize_mean=running_args.loc_normalize_mean, \
-                                                          loc_normalize_std=running_args.loc_normalize_std)
+        self.proposal_target_creator = ProposalTargetCreator(n_sample=mask_running_args.n_roi_sample, pos_ratio=mask_running_args.pos_roi_ratio, \
+                                                          pos_iou_thresh=mask_running_args.pos_roi_iou_thresh, neg_iou_thresh_hi=mask_running_args.neg_iou_thresh_hi, \
+                                                          neg_iou_thresh_lo=mask_running_args.neg_iou_thresh_lo, loc_normalize_mean=mask_running_args.loc_normalize_mean, \
+                                                          loc_normalize_std=mask_running_args.loc_normalize_std)
         
         # base anchor boxes, with shape(9,4)
-        self.base_anchor_boxes = gen_anchor_boxes()
+        self.base_anchor_boxes = gen_pyramid_anchors()
 
         # class number(add one to label background)
         self.n_class = n_fg_class+1
@@ -84,7 +84,7 @@ class FasterRCNN(nn.Module):
         self.score_thresh = 0.7
 
         # feat stride
-        self.feat_stride = running_args.feat_stride
+        self.feat_stride = mask_running_args.feat_stride
 
     def forward(self, x, gt_boxes, gt_labels, scale):
         # only support batch size == 1
@@ -121,7 +121,7 @@ class FasterRCNN(nn.Module):
             # score cross entropy loss, ignore index = -1, labels only contain 0(bg),1(fg),-1(ignore)
             rpn_score_loss = F.cross_entropy(rpn_score, labels, ignore_index=-1)
             # smooth l1 loss
-            rpn_reg_loss = smooth_l1_loss(rpn_reg_loc, loc, labels, running_args.rpn_sigma)
+            rpn_reg_loss = smooth_l1_loss(rpn_reg_loc, loc, labels, mask_running_args.rpn_sigma)
         else:
             rpn_score_loss = 0
             rpn_reg_loss = 0
@@ -157,7 +157,7 @@ class FasterRCNN(nn.Module):
             roi_locs = roi_locs[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
             gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
 
-            roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, running_args.roi_sigma)
+            roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, mask_running_args.roi_sigma)
             roi_score_loss = F.cross_entropy(roi_scores, gt_sample_labels)
         else:
             roi_score_loss = 0
@@ -206,8 +206,8 @@ class FasterRCNN(nn.Module):
         # sample_rois shape [128, 4]
         _, _, _, _, roi_reg_locs, roi_scores, sample_rois = self(img, gt_boxes, gt_labels, scale)
 
-        loc_std = t.tensor(running_args.loc_normalize_std).repeat(self.n_class)
-        loc_mean = t.tensor(running_args.loc_normalize_mean).repeat(self.n_class)
+        loc_std = t.tensor(mask_running_args.loc_normalize_std).repeat(self.n_class)
+        loc_mean = t.tensor(mask_running_args.loc_normalize_mean).repeat(self.n_class)
         if t.cuda.is_available():
             loc_std, loc_mean = loc_std.cuda(), loc_mean.cuda()
 
