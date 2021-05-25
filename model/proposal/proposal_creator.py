@@ -9,13 +9,14 @@ from model.util.bbox_opt import delta2box
 
 
 class ProposalCreator:
-    def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh):
+    def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh, skip_small_obj=False):
         self.pre_train_num = pre_train_num   # default value is 12000, you can change it in config.py
         self.post_train_num = post_train_num # default value is 6000, you can change it in config.py
         self.pre_test_num = pre_test_num     # default value is 2000, you can change it in config.py
         self.post_test_num = post_test_num   # default value is 300, you can change it in config.py
         self.min_roi_size = min_roi_size     # default value is 16, you can change it in config.py
         self.nms_thresh = nms_thresh         # default value is 0.7, you can change it in config.py
+        self.skip_small_obj = skip_small_obj
 
     def __call__(self, anchors, rpn_reg_loc, rpn_score, img_size, scale, is_training):
         '''
@@ -44,12 +45,13 @@ class ProposalCreator:
         # 3. remove small ones, the default min_roi_size is 16
         # note this step is very important, not only it takes off the small roi, but also it gets rid of 
         # some rois whose right-down point is smaller than left top point, this is a very important property for function nms
-        ws = proposal_rois[:,2]-proposal_rois[:,0]
-        hs = proposal_rois[:,3]-proposal_rois[:,1]
-        min_scale = self.min_roi_size*scale
-        keep_idx = np.where((hs>=min_scale) & (ws>=min_scale))[0]
-        rois = proposal_rois[keep_idx]
-        scores = rpn_score[keep_idx]
+        if not self.sort_keep_idx:
+            ws = proposal_rois[:,2]-proposal_rois[:,0]
+            hs = proposal_rois[:,3]-proposal_rois[:,1]
+            min_scale = self.min_roi_size*scale
+            keep_idx = np.where((hs>=min_scale) & (ws>=min_scale))[0]
+            rois = proposal_rois[keep_idx]
+            scores = rpn_score[keep_idx]
 
         # 4. we only need fg score
         sort_keep_idx = np.argsort(scores)[::-1]

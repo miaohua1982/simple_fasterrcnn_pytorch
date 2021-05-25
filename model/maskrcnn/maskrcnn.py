@@ -9,8 +9,9 @@ from model.util.bbox_opt import gen_pyramid_anchors, delta2box
 
 from config.config import mask_running_args
 from model.maskrcnn.feature_pyramid_network import FeaturePyramidNetwork
-from model.maskrcnn.region_proposal_network import RegionProposalNetwork
+from model.maskrcnn.region_proposal_network import RegionProposalNetwork, rpn_to_proposal
 from model.fasterrcnn.roi_header import RoIHeader
+from model.proposal.proposal_creator import ProposalCreator
 from model.proposal.anchor_target_creator import AnchorTargetCreator
 from model.proposal.proposal_target_creator import ProposalTargetCreator
 from functools import wraps 
@@ -54,13 +55,19 @@ class MaskRCNN(nn.Module):
         
         # the fpn network
         self.fpn = FeaturePyramidNetwork(backbone_output_channels=backbone_channels, output_channels=256)
+
         # the rpn network
-        self.rpn = RegionProposalNetwork(input_channels=256, mid_channels=512, n_per_anchor=mask_running_args.n_base_anchors_num)
+        self.rpn = RegionProposalNetwork(input_channels=256, mid_channels=512, n_per_anchor=len(mask_running_args.anchor_ratios)*len(mask_running_args.anchor_scales))
         
         # the roi header network
         # the class including the bg
-        self.head = RoIHeader(n_class=n_fg_class+1, roi_size=mask_running_args.roi_size, spatial_scale=mask_running_args.spatial_scale, classifier=classifier)
+        self.head = RoIHeader(n_class=n_fg_class+1, roi_size=mask_running_args.roi_size, spatial_scale=mask_running_args.spatial_scale)
         
+        # proposal creator
+        self.proposal_creator = ProposalCreator(mask_running_args.pre_train_num, mask_running_args.post_train_num, mask_running_args.pre_test_num, \
+                                                mask_running_args.post_test_num, mask_running_args.min_roi_size, mask_running_args.proposal_nms_thresh,\
+                                                mask_running_args.skip_small_obj)  # wether to skip small obj
+
         # anchor target creator for training rpn network
         # its task is to choose *n_sample*(256) sample from anchor boxes
         self.anchor_target_creator = AnchorTargetCreator(n_sample=mask_running_args.n_sample, pos_ratio=mask_running_args.pos_ratio, \
@@ -73,8 +80,11 @@ class MaskRCNN(nn.Module):
                                                           neg_iou_thresh_lo=mask_running_args.neg_iou_thresh_lo, loc_normalize_mean=mask_running_args.loc_normalize_mean, \
                                                           loc_normalize_std=mask_running_args.loc_normalize_std)
         
-        # base anchor boxes, with shape(9,4)
-        self.base_anchor_boxes = gen_pyramid_anchors()
+        # base anchor boxes, with shape [R, 4]
+        # R=len(scales)*len(ratios)*len(feat_stride)*int(feat_height/anchor_stride)*int(feat_width/anchor_stride)
+        self.base_anchor_boxes = gen_pyramid_anchors(mask_running_args.anchor_sacles, mask_running_args.anchor_ratios, \
+                                                     mask_running_args.image_size, mask_running_args.backbone_stride, \
+                                                     mask_running_args.anchor_stride)
 
         # class number(add one to label background)
         self.n_class = n_fg_class+1
@@ -86,42 +96,40 @@ class MaskRCNN(nn.Module):
         # feat stride
         self.feat_stride = mask_running_args.feat_stride
 
-    def forward(self, x, gt_boxes, gt_labels, scale):
+    def forward(self, x, gt_boxes, gt_labels, gt_masks, scale):
         # only support batch size == 1
         assert x.shape[0] == 1, 'we only support batch size=1'
         # image size
         img_size = (x.shape[2], x.shape[3]) # height & width
-        # feature extract
-        feat = self.backbone(x)
 
-        # get shifted anchor boxes for every point in feature map
-        n, ch, h, w = feat.shape
-        pre_defined_anchor_boxes = shift_anchor_boxes(self.base_anchor_boxes, h, w, self.feat_stride) # shape(n, 4), n=h*w*9
+        # feature extract, here we get p2, p3, p4, p5
+        feats = self.backbone(x)
+
+        # feature pyramid network, here we get p2, p3, p4, p5, p6, all of them have 256 channels
+        fpn_feats = self.rpn(feats)
 
         # rpn, 
-        # rpn_score & rpn_reg_loc with shape (n,1) & (n,2), n=feat.h*feat.w*9
-        # rois with shape (n,4), n is at most 6000(at train mode) or 300(at test mode), rois is np.array
-        rpn_score, rpn_reg_loc, rois = self.rpn(feat, pre_defined_anchor_boxes, img_size, scale)
-        # note batch size == 1
-        rpn_score = rpn_score[0]
-        rpn_reg_loc = rpn_reg_loc[0]
-        rois = rois[0]
+        # rpn_digits & rpn_reg_loc with shape (n,2) & (n,4), n=feat.h*feat.w*9
+        # rois with shape (n,4), n is at most 2000(at train mode) or 1000(at test mode), rois is np.array
+        rpn_digits, rpn_loc_deltas, rpn_rois = rpn_to_proposal(self.rpn, proposal_creator, fpn_feats, self.base_anchor_boxes, img_size, scale, self.training)
 
         # anchor target creator
         if self.training:
             # loc shape is still n*4, labels shape is still n*1
-            # n's typical value is w//16*h//16*9, w&h is input image size, 16 is scaler, 9 is anchor box number
+            # mask rcnn: n's typical value is (feat_height/anchor_stride)*(feat_width/anchor_stride)*15*number of feat map
+            # number of feat map is 5(p2, p3, p4, p5, p6), anchor stride is 1(means generat anchor box for every feature map cell, can be other values)
+            # different feat map has different feat_height & feat_width       
             # ***but note, there are only 256 sample is useful***, except that, in other position the value is -1 for label, 0 for loc
             # gt_boxes' shape [0] == 1, we only support one batch, loc & labels with type of np.array
-            loc, labels = self.anchor_target_creator(pre_defined_anchor_boxes, gt_boxes[0].cpu().numpy(), img_size)
+            loc_deltas, labels = self.anchor_target_creator(self.base_anchor_boxes, gt_boxes[0].cpu().numpy(), img_size)
             # the type of loc & labels is np.array, so we need to change it into tensor
-            loc = t.from_numpy(loc).cuda() if t.cuda.is_available() else t.from_numpy(loc)
+            loc_deltas = t.from_numpy(loc_deltas).cuda() if t.cuda.is_available() else t.from_numpy(loc_deltas)
             labels = t.from_numpy(labels).long().cuda() if t.cuda.is_available() else t.from_numpy(labels).long()
             # rpn loss
             # score cross entropy loss, ignore index = -1, labels only contain 0(bg),1(fg),-1(ignore)
-            rpn_score_loss = F.cross_entropy(rpn_score, labels, ignore_index=-1)
+            rpn_cls_loss = F.cross_entropy(rpn_digits, labels, ignore_index=-1)
             # smooth l1 loss
-            rpn_reg_loss = smooth_l1_loss(rpn_reg_loc, loc, labels, mask_running_args.rpn_sigma)
+            rpn_reg_loss = smooth_l1_loss(rpn_loc_deltas, loc_deltas, labels, mask_running_args.rpn_sigma)
         else:
             rpn_score_loss = 0
             rpn_reg_loss = 0

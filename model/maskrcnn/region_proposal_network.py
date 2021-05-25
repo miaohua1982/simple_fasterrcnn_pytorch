@@ -1,10 +1,9 @@
 from __future__ import  absolute_import
 
 import torch as t
-import numpy as np
 from torch import nn
 from torch.nn import functional  as F
-from config.config import running_args
+from config.config import mask_running_args
 
 class RegionProposalNetwork(nn.Module):
     def __init__(self, input_channels, mid_channels, n_per_anchor):
@@ -49,18 +48,20 @@ def rpn_to_proposal(rpn, proposal_creator, X, anchor_boxes, img_size, scale, is_
         rpn_scores.append(score.squeeze(dim=0))
         rpn_loc_deltas.append(delta.squeeze(dim=0))
     
+    # rpn_digits has shape n*2, where n is the number of anchors
+    rpn_digits = t.cat(rpn_digits)
     # rpn_scores has shape n*2, where n is the number of anchors
     rpn_scores = t.cat(rpn_scores)
     # rpn_loc_deltas has shape n*4, where n is the number of anchors
     rpn_loc_deltas = t.cat(rpn_loc_deltas)
-    # rois has shape n*4, where n is the number of predefined number(training=2000, testing=300)
-    rois = proposal_creator(anchor_boxes, rpn_loc_deltas.detach().cpu().numpy(), rpn_scores[:,1].detach().cpu().numpy(), img_size, scale, is_training)
+    # rois has shape n*4, where n is the number of predefined number(typical value: training=2000, testing=1000)
+    rpn_rois = proposal_creator(anchor_boxes, rpn_loc_deltas.detach().cpu().numpy(), rpn_scores[:,1].detach().cpu().numpy(), img_size, scale, is_training)
     
-    return rpn_scores, rpn_loc_deltas, rois
+    return rpn_digits, rpn_loc_deltas, rpn_rois
     
 def normal_init(m, mean, stddev, truncated=False):
     """
-    weight initalizer: truncated normal and random normal.
+    weight initializer: truncated normal and random normal.
     """
     # x is a parameter
     if truncated:

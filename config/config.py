@@ -75,14 +75,26 @@ class Fasterrcnn_Config(ConfigBase):
     pass
 
 class Maskrcnn_Config(ConfigBase):
+    # backbone network
     backbone = "resnet101"
-    num_classes = 80
+    num_classes = 80 + 1     # coco dataset has 80 classes
     image_size = (1024,1024)
+    # base anchor box generation
     backbone_stride = [4,8,16,32,64]
     anchor_ratios = [0.5,1,2]
     anchor_scales = [32,64,128,256,512]
     # generate anchor box for every cell in feature map
-    anchor_stride = 1 
+    anchor_stride = 1
+    # proposal creator for choosing good samples to train roi head network
+    pre_train_num=6000
+    post_train_num=2000
+    pre_test_num=6000
+    post_test_num=1000
+    skip_small_obj=True  #wether to skip small object
+
+    # roi header
+    mask_roi_size = 14
+
 
 running_args = Fasterrcnn_Config()
 
