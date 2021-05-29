@@ -77,8 +77,6 @@ def gen_pyramid_anchors(scales, ratios, image_size, feat_strides, anchor_stride)
 
     anchor_boxes = np.concatenate(anchor_boxes, axis=0)            
     return anchor_boxes
-            
-
 
 def delta2box(base_boxes, deltas):
     xywh_boxes = xxyy2xywh(base_boxes)

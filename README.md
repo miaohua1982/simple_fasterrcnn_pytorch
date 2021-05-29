@@ -116,5 +116,5 @@ python train_faster_rcnn.py
 >2.Make sure the VOC2007 dataset is under **data** floder.But you can change the path by parameter **dataset_base_path** in config.py, then you can place the dataset files in any place as you like.
 
 ## Scores
-The Score right now which I have achieved is a little above 0.687, which I use VGG16 as backbone.The weight is [here](https://pan.baidu.com/s/1TtznJQ98Y7JgaYv5IxNSeg)  (The baidu cloud, access code is k1gt)
+The Score right now which I have achieved is a little above 0.687, which I use VGG16 as backbone.The weight is [here](https://pan.baidu.com/s/1TtznJQ98Y7JgaYv5IxNSeg)  (The baidu cloud storage, access code is k1gt)
 Though I have added resnet family to the project, I haven't try it yet, and I will try it soon. By the way,you can use any other backbone, just have a look the folder **backbone** under **model** directory.When using different backbone, just remember to change the parameter **backbone** in file config.py.
