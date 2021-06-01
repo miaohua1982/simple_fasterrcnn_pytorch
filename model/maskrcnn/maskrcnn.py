@@ -61,8 +61,9 @@ class MaskRCNN(nn.Module):
         
         # the roi header network
         # the class including the bg
-        self.head = RoIHeader(n_class=n_fg_class+1, roi_size=mask_running_args.roi_size, spatial_scale=mask_running_args.spatial_scale)
-        
+        self.roi_header = RoIHeader(depth=256, roi_size=mask_running_args.roi_size, image_shape=mask_running_args.image_size, num_classes=n_fg_class+1)
+        self.mask_header = MaskHeader(depth=256, pool_size=mask_running_args.mask_roi_size, image_shape=mask_running_args.image_size, num_classes=n_fg_class+1)
+
         # proposal creator
         self.proposal_creator = ProposalCreator(mask_running_args.pre_train_num, mask_running_args.post_train_num, mask_running_args.pre_test_num, \
                                                 mask_running_args.post_test_num, mask_running_args.min_roi_size, mask_running_args.proposal_nms_thresh,\
@@ -140,8 +141,9 @@ class MaskRCNN(nn.Module):
         # gt_sample_locs: 128*4(xywh scale & offset), delta between sample rois and gt boxes 
         # gt_sample_labels: 128*1 labels including background as 0
         # gt_sample_roi_indices: 128*1, the indices for roi, default is 0
+        # gt_mask_scores: 128*28*28
         if self.training:
-            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices = self.proposal_target_creator(rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
+            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices, gt_mask_scores = self.proposal_target_creator(rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
         else:
             sample_rois = rois
             gt_sample_roi_indices = np.zeros(sample_rois.shape[0], dtype=np.float32)
@@ -150,8 +152,9 @@ class MaskRCNN(nn.Module):
         # roi_scores shape:[128,classes]
         sample_rois = t.from_numpy(sample_rois).cuda() if t.cuda.is_available() else t.from_numpy(sample_rois)
         gt_sample_roi_indices = t.from_numpy(gt_sample_roi_indices).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_roi_indices)
-        roi_reg_locs, roi_scores = self.head(feat, sample_rois, gt_sample_roi_indices)
-        
+        roi_scores, _, roi_reg_locs  = self.roi_header(feat, sample_rois)
+        mask_scores = self.mask_header(feat, sample_rois) # with shape [num of box, num of cls, 28, 28]
+
         if self.training:
             # reshape roi locs to n*(class_num+1)*4, plus 1 is for background
             n = roi_reg_locs.shape[0]
@@ -163,10 +166,12 @@ class MaskRCNN(nn.Module):
             # according to gt labels, pick the gt box from (class_num+1) , the shape will be changed to n*4
             gt_sample_labels = t.from_numpy(gt_sample_labels).long().cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_labels).long()
             roi_locs = roi_locs[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
+            mask_scores = mask_scores[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
             gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
 
             roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, mask_running_args.roi_sigma)
             roi_score_loss = F.cross_entropy(roi_scores, gt_sample_labels)
+            mask_score_loss = F.binary_cross_entropy(mask_scores, gt_mask_scores)
         else:
             roi_score_loss = 0
             roi_reg_loss = 0

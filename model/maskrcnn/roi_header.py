@@ -1,19 +1,18 @@
 from torch import nn
 import torch
 from torch.nn import functional as F
-import math
-from model.util.crop_resize import CropAndResizeFunction
+from model.util.align_roi_pool import RoIAlign_C
 
 
 def pyramid_roi_align(inputs, pool_size, image_shape):
     """Implements ROI Pooling on multiple levels of the feature pyramid.
 
     Params:
-    - pool_size: [height, width] of the output pooled regions. Usually [7, 7]
+    - pool_size: [height, width] of the output pooled regions. Usually [7, 7] for classifier, [14, 14] for mask header
     - image_shape: [height, width, channels]. Shape of input image in pixels
 
     Inputs:
-    - boxes: [batch, num_boxes, (y1, x1, y2, x2)] in normalized
+    - boxes: [batch, num_boxes, (x1, y1, x2, y2)] in normalized
              coordinates.
     - Feature maps: List of feature maps from different levels of the pyramid.
                     Each is [batch, channels, height, width]
@@ -28,7 +27,7 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
     for i in range(len(inputs)):
         inputs[i] = inputs[i].squeeze(0)
 
-    # Crop boxes [batch, num_boxes, (y1, x1, y2, x2)] in normalized coords
+    # Crop boxes [batch, num_boxes, (x1, y1, x2, y2)] in normalized coords
     boxes = inputs[0]
 
     # Feature Maps. List of feature maps from different level of the
@@ -36,7 +35,7 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
     feature_maps = inputs[1:]
 
     # Assign each ROI to a level in the pyramid based on the ROI area.
-    y1, x1, y2, x2 = boxes.chunk(4, dim=1)
+    x1, y1, x2, y2 = boxes.chunk(4, dim=1)
     h = y2 - y1
     w = x2 - x1
 
@@ -80,9 +79,9 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
         if torch.cuda.is_available():
             ind = ind.cuda()
         feature_maps[i] = feature_maps[i].unsqueeze(0)  #CropAndResizeFunction needs batch dimension
-        
-        crop = CropAndResizeFunction(pool_size, pool_size, 0)
-        pooled_features = crop.apply(feature_maps[i], level_boxes, ind)
+        scale = feature_maps[i].shape[-1]/image_shape[-1]
+        align_roi = RoIAlign_C(pool_size, pool_size, scale)
+        pooled_features = align_roi.apply(feature_maps[i], level_boxes, ind)
 
         # pooled_features = CropAndResizeFunction(pool_size, pool_size, 0)(feature_maps[i], level_boxes, ind)
         pooled.append(pooled_features)
@@ -100,9 +99,9 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
 
     return pooled
 
-class RoiHeader(nn.Module):
+class RoIHeader(nn.Module):
     def __init__(self, depth, pool_size, image_shape, num_classes):
-        super(RoiHeader, self).__init__()
+        super(RoIHeader, self).__init__()
         self.depth = depth
         self.pool_size = pool_size
         self.image_shape = image_shape

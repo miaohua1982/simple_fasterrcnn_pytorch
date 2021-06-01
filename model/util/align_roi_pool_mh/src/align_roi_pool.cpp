@@ -9,12 +9,18 @@ int add(int i, int j) {
 	return i + j;
 }
 
+inline float max(float a, float b){
+    return a<b? b:a;
+}
+
+
 void CropAndResizePerBox(
     const float * image_data, 
     const int batch_size,
     const int depth,
     const int image_height,
     const int image_width,
+    const int sampling_ratio,
     const float spatial_scale,
 
     const float * boxes_data, 
@@ -34,81 +40,81 @@ void CropAndResizePerBox(
 
     for (int b = 0; b < limit_box; ++b) {
         const float * box = boxes_data + b * 4;
-        const float x1 = (box[0]-0.5)*spatial_scale;
-        const float y1 = (box[1]-0.5)*spatial_scale;
-        const float x2 = (box[2]-0.5)*spatial_scale;
-        const float y2 = (box[3]-0.5)*spatial_scale;
+        const float x1 = box[0]*spatial_scale;
+        const float y1 = box[1]*spatial_scale;
+        const float x2 = box[2]*spatial_scale;
+        const float y2 = box[3]*spatial_scale;
 
-        const int b_in = box_index_data[b];
-        if (b_in < 0 || b_in >= batch_size) {
+        const int batch_ind = box_index_data[b];
+        if (batch_ind < 0 || batch_ind >= batch_size) {
             char msg[100];
-            sprintf(msg,"Error: batch_index %d out of range [0, %d)\n", b_in, batch_size);
+            sprintf(msg,"Error: batch_index %d out of range [0, %d)\n", batch_ind, batch_size);
             throw std::runtime_error(msg);
         }
 
-        const float height_scale =
-            (crop_height > 1) ? (y2 - y1) / (crop_height - 1) : 0;
-        const float width_scale =
-            (crop_width > 1) ? (x2 - x1)  / (crop_width - 1) : 0;
+        float height_scale = (crop_height > 1) ? max(y2 - y1, 1.0f) / crop_height : 0;
+        float width_scale = (crop_width > 1) ? max(x2 - x1, 1.0f)  / crop_width : 0;
 
-        for (int y = 0; y < crop_height; ++y)
-        {
-            const float in_y = (crop_height > 1)
-                                   ? y1 + y * height_scale
-                                   : 0.5f * (y1 + y2);
+        int sample_ratio_height = (sampling_ratio == -1) ? std::ceil(height_scale) : sampling_ratio;
+        int sample_ratio_width = (sampling_ratio == -1) ? std::ceil(width_scale) : sampling_ratio;
 
-            if (in_y < 0 || in_y > image_height - 1)
+        for(int d = 0; d < depth; ++d) {
+            const float *pimage = image_data + batch_ind * image_elements + d * image_channel_elements;
+
+            for(int y = 0; y < crop_height; ++y)
             {
-                for (int x = 0; x < crop_width; ++x)
-                {
-                    for (int d = 0; d < depth; ++d)
-                    {
-                        // crops(b, y, x, d) = extrapolation_value;
-                        corps_data[crop_elements * b + channel_elements * d + y * crop_width + x] = extrapolation_value;
-                    }
-                }
-                continue;
-            }
-            
-            const int top_y_index = std::floor(in_y);
-            const int bottom_y_index = std::ceil(in_y);
-            const float y_lerp = in_y - top_y_index;
+                const float in_y = (crop_height > 1) ? y1 + y * height_scale : 0.5f * (y1 + y2);
 
-            for (int x = 0; x < crop_width; ++x)
-            {
-                const float in_x = (crop_width > 1)
-                                       ? x1 + x * width_scale
-                                       : 0.5f * (x1 + x2);
-                if (in_x < 0 || in_x > image_width - 1)
+                if (in_y < 0 || in_y > image_height - 1)
                 {
-                    for (int d = 0; d < depth; ++d)
+                    for (int x = 0; x < crop_width; ++x)
                     {
                         corps_data[crop_elements * b + channel_elements * d + y * crop_width + x] = extrapolation_value;
                     }
                     continue;
                 }
-            
-                const int left_x_index = std::floor(in_x);
-                const int right_x_index = std::ceil(in_x);
-                const float x_lerp = in_x - left_x_index;
+                
+                for (int x = 0; x < crop_width; ++x)
+                {
+                    const float in_x = (crop_width > 1)? x1 + x * width_scale : 0.5f * (x1 + x2);
+                    if (in_x < 0 || in_x > image_width - 1)
+                    {
+                        corps_data[crop_elements * b + channel_elements * d + y * crop_width + x] = extrapolation_value;
+                        continue;
+                    }
+                
+                    float p_val = 0.0f;
+                    for(int i = 0; i < sample_ratio_height; ++i) {
+                        float py = in_y + height_scale*(1.0f+i*2.0f)/2.0f/sample_ratio_height;
+                        int top_y = std::floor(py);
+                        int down_y = std::ceil(py);
+                        float y_lerp = py-top_y;
 
-                for (int d = 0; d < depth; ++d)
-                {   
-                    const float *pimage = image_data + b_in * image_elements + d * image_channel_elements;
+                        for(int j = 0; j < sample_ratio_width; ++j) {
+                            float px = in_x + width_scale*(1.0f+j*2.0f)/2.0f/sample_ratio_width;
 
-                    const float top_left = pimage[top_y_index * image_width + left_x_index];
-                    const float top_right = pimage[top_y_index * image_width + right_x_index];
-                    const float bottom_left = pimage[bottom_y_index * image_width + left_x_index];
-                    const float bottom_right = pimage[bottom_y_index * image_width + right_x_index];
-                    
-                    const float top = top_left + (top_right - top_left) * x_lerp;
-                    const float bottom = bottom_left + (bottom_right - bottom_left) * x_lerp;
+                            int left_x = std::floor(px);
+                            int right_x = std::ceil(px);
+                            float x_lerp = px-left_x;
+
+                            const float top_left = pimage[top_y * image_width + left_x];
+                            const float top_right = pimage[top_y * image_width + right_x];
+                            const float bottom_left = pimage[down_y * image_width + left_x];
+                            const float bottom_right = pimage[down_y * image_width + right_x];
                         
-                    corps_data[crop_elements * b + channel_elements * d + y * crop_width + x] = top + (bottom - top) * y_lerp;
-                }
-            }   // end for x
-        }   // end for y
-    }   // end for b
+                            const float top = top_left + (top_right - top_left) * x_lerp;
+                            const float bottom = bottom_left + (bottom_right - bottom_left) * x_lerp;
+                            
+                            p_val  += top + (bottom - top) * y_lerp;                        
+                        }
+                    }
+                    
+                    corps_data[crop_elements * b + channel_elements * d + y * crop_width + x] = p_val/sample_ratio_height/sample_ratio_width;
+
+                }   // end for x
+            }   // end for y
+        } // end for depth
+    }   // end for batch
 
 }
 
@@ -121,6 +127,7 @@ void align_roi_pool_forward(
     const int crop_height,
     const int crop_width,
     const float spatial_scale,
+    const int sampling_ratio,
     py::array_t<float> & crops        //THFloatTensor * crops
 ) {
     /*
@@ -143,14 +150,6 @@ void align_roi_pool_forward(
 
 	const int num_boxes = boxes_buf.shape[0];
 
-    // init output space
-    //THFloatTensor_resize4d(crops, num_boxes, depth, crop_height, crop_width);
-    //THFloatTensor_zero(crops);
-	//apply for new memory
-	//auto crops = py::array_t<float>(num_boxes*depth*crop_height*crop_width);
-	//reshape to 4d array
-	//crops.resize({num_boxes, depth, crop_height, crop_width});
-
     // get memory access
     float* image_data = (float*)image_buf.ptr;
     float* boxes_data = (float*)boxes_buf.ptr;
@@ -163,6 +162,7 @@ void align_roi_pool_forward(
         depth,
         image_height,
         image_width,
+        sampling_ratio,
         spatial_scale,
 
         boxes_data,     // THFloatTensor_data(boxes),
@@ -182,25 +182,14 @@ void align_roi_pool_backward(
     const py::array_t<float> & boxes,   //THFloatTensor * boxes,      // [y1, x1, y2, x2]
     const py::array_t<int> & box_inds,  //THIntTensor * box_index,    // range in [0, batch_size)
     const float spatial_scale,
+    const int sampling_ratio,
     py::array_t<float> & grads_image    //THFloatTensor * grads_image // resize to [bsize, c, hc, wc]
 )
 {   
-    // shape
-    /*
-    const int batch_size = grads_image->size[0];
-    const int depth = grads_image->size[1];
-    const int image_height = grads_image->size[2];
-    const int image_width = grads_image->size[3];
-
-    const int num_boxes = grads->size[0];
-    const int crop_height = grads->size[2];
-    const int crop_width = grads->size[3];
-    */
     py::buffer_info grads_buf = grads.request();
     py::buffer_info boxes_buf = boxes.request();
     py::buffer_info box_inds_buf = box_inds.request();
   	py::buffer_info grads_image_buf = grads_image.request();
-
 
 	const int batch_size = grads_image_buf.shape[0];
     const int depth = grads_image_buf.shape[1];
@@ -218,9 +207,6 @@ void align_roi_pool_backward(
     const int channel_elements = crop_height * crop_width;
     const int crop_elements = depth * channel_elements;
 
-    // init output space
-    // THFloatTensor_zero(grads_image);
-
     // data pointer
     const float * grads_data = (const float*)grads_buf.ptr;
     const float * boxes_data = (const float*)boxes_buf.ptr;
@@ -229,66 +215,71 @@ void align_roi_pool_backward(
 
     for (int b = 0; b < num_boxes; ++b) {
         const float * box = boxes_data + b * 4;
-        const float y1 = box[0];
-        const float x1 = box[1];
-        const float y2 = box[2];
-        const float x2 = box[3];
+        const float x1 = box[0] * spatial_scale;
+        const float y1 = box[1] * spatial_scale;
+        const float x2 = box[2] * spatial_scale;
+        const float y2 = box[3] * spatial_scale;
 
-        const int b_in = box_index_data[b];
-        if (b_in < 0 || b_in >= batch_size) {
+        const int batch_ind = box_index_data[b];
+        if (batch_ind < 0 || batch_ind >= batch_size) {
             char msg[100];
-            sprintf(msg,"Error: batch_index %d out of range [0, %d)\n", b_in, batch_size);
+            sprintf(msg,"Error: batch_index %d out of range [0, %d)\n", batch_ind, batch_size);
             throw std::runtime_error(msg);
        }
 
-        const float height_scale =
-            (crop_height > 1) ? (y2 - y1) * spatial_scale / (crop_height - 1)
-                              : 0;
-        const float width_scale =
-            (crop_width > 1) ? (x2 - x1) * spatial_scale / (crop_width - 1)
-                             : 0;
+        const float height_scale = (crop_height > 1) ? max(y2 - y1, 1.0f) / crop_height : 0;
+        const float width_scale = (crop_width > 1) ? max(x2 - x1, 1.0f) / crop_width : 0;
 
-        for (int y = 0; y < crop_height; ++y)
-        {
-            const float in_y = (crop_height > 1)
-                                   ? y1 * spatial_scale + y * height_scale
-                                   : 0.5f * (y1 + y2) * spatial_scale;
-            if (in_y < 0 || in_y > image_height - 1)
-            {
-                continue;
-            }
-            const int top_y_index = floorf(in_y);
-            const int bottom_y_index = ceilf(in_y);
-            const float y_lerp = in_y - top_y_index;
+        int sample_ratio_height = (sampling_ratio == -1) ? std::ceil(height_scale) : sampling_ratio;
+        int sample_ratio_width = (sampling_ratio == -1) ? std::ceil(width_scale) : sampling_ratio;
 
-            for (int x = 0; x < crop_width; ++x)
+        for(int d = 0; d < depth; ++d) {
+            float *pimage = grads_image_data + batch_ind * image_elements + d * image_channel_elements;
+
+            for (int y = 0; y < crop_height; ++y)
             {
-                const float in_x = (crop_width > 1)
-                                       ? x1 * spatial_scale + x * width_scale
-                                       : 0.5f * (x1 + x2) * spatial_scale;
-                if (in_x < 0 || in_x > image_width - 1)
+                const float in_y = (crop_height > 1) ? y1 + y * height_scale : 0.5f * (y1 + y2);
+                if (in_y < 0 || in_y > image_height - 1)
                 {
                     continue;
                 }
-                const int left_x_index = floorf(in_x);
-                const int right_x_index = ceilf(in_x);
-                const float x_lerp = in_x - left_x_index;
 
-                for (int d = 0; d < depth; ++d)
-                {   
-                    float *pimage = grads_image_data + b_in * image_elements + d * image_channel_elements;
-                    const float grad_val = grads_data[crop_elements * b + channel_elements * d + y * crop_width + x];
+                for (int x = 0; x < crop_width; ++x)
+                {
+                    const float in_x = (crop_width > 1) ? x1 + x * width_scale : 0.5f * (x1 + x2);
+                    if (in_x < 0 || in_x > image_width - 1)
+                    {
+                        continue;
+                    }
 
-                    const float dtop = (1 - y_lerp) * grad_val;
-                    pimage[top_y_index * image_width + left_x_index] += (1 - x_lerp) * dtop;
-                    pimage[top_y_index * image_width + right_x_index] += x_lerp * dtop;
+                    float grad_val = grads_data[crop_elements * b + channel_elements * d + y * crop_width + x];
+                    grad_val /= (sample_ratio_height*sample_ratio_width);
 
-                    const float dbottom = y_lerp * grad_val;
-                    pimage[bottom_y_index * image_width + left_x_index] += (1 - x_lerp) * dbottom;
-                    pimage[bottom_y_index * image_width + right_x_index] += x_lerp * dbottom;
-                }   // end d
-            }   // end x
-        }   // end y
+                    for(int i = 0; i < sample_ratio_height; ++i) {
+                        float py = in_y + height_scale*(1.0f+2.0f*i)/2.0f/sample_ratio_height;
+                        int top_y = std::floor(py);
+                        int down_y = std::ceil(py);
+                        float y_lerp = py-top_y;
+
+                        for(int j = 0; j < sample_ratio_width; ++j) {
+                            float px = in_x + width_scale*(1.0f+2.0f*j)/2.0f/sample_ratio_width;
+                            int left_x = std::floor(px);
+                            int right_x = std::ceil(px);
+                            float x_lerp = px-left_x;
+
+                            const float top_val = (1-y_lerp)*grad_val;
+                            pimage[top_y * image_width + left_x] += (1 - x_lerp) * top_val;
+                            pimage[top_y * image_width + right_x] += x_lerp * top_val;
+
+                            const float bottem_val = y_lerp * grad_val;
+                            pimage[down_y * image_width + left_x] += (1 - x_lerp) * bottem_val;
+                            pimage[down_y * image_width + right_x] += x_lerp * bottem_val;
+                        }
+                    }
+
+                }   // end x
+            }   // end y
+        } // end depth
     }   // end b
 }
 
@@ -299,7 +290,7 @@ PYBIND11_MODULE(align_roi_pool_mh, m) {
 	m.def("add", &add, "for test");
 	m.def("align_roi_pool_forward", &align_roi_pool_forward, "A function does align roi forward", \
         py::arg("image"), py::arg("boxes"), py::arg("box_inds"), py::arg("extrapolation_value"), \
-        py::arg("crop_height"), py::arg("crop_width"), py::arg("spatial_scale"), py::arg("crops"));
+        py::arg("crop_height"), py::arg("crop_width"), py::arg("spatial_scale"), py::arg("sampling_ratio"), py::arg("crops"));
 	m.def("align_roi_pool_backward", &align_roi_pool_backward, "A function does align roi backward", \
-		py::arg("grads"), py::arg("boxes"), py::arg("box_inds"), py::arg("spatial_scale"), py::arg("grads_image"));
+		py::arg("grads"), py::arg("boxes"), py::arg("box_inds"), py::arg("spatial_scale"), py::arg("sampling_ratio"), py::arg("grads_image"));
 }
