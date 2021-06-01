@@ -22,15 +22,15 @@ __version__ = "0.0.1"
 #   reproducible builds (https://github.com/pybind/python_example/pull/53)
 
 ext_modules = [
-    Pybind11Extension("crop_and_resize_mh",
-        ["src/crop_and_resize.cpp"],
+    Pybind11Extension("align_roi_pool_mh",
+        ["src/align_roi_pool.cpp"],
         # Example: passing in the version to the compiled code
         define_macros = [('VERSION_INFO', __version__)],
         ),
 ]
 
 setup(
-    name="crop_and_resize_mh",
+    name="align_roi_pool_mh",
     version=__version__,
     author="victor miao",
     author_email="miaohua1982@gmail.com",

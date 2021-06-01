@@ -15,10 +15,10 @@ void CropAndResizePerBox(
     const int depth,
     const int image_height,
     const int image_width,
+    const float spatial_scale,
 
     const float * boxes_data, 
     const int * box_index_data,
-    const int start_box, 
     const int limit_box,
 
     float * corps_data,
@@ -32,33 +32,30 @@ void CropAndResizePerBox(
     const int channel_elements = crop_height * crop_width;
     const int crop_elements = depth * channel_elements;
 
-    for (int b = start_box; b < limit_box; ++b) {
+    for (int b = 0; b < limit_box; ++b) {
         const float * box = boxes_data + b * 4;
-        const float y1 = box[0];
-        const float x1 = box[1];
-        const float y2 = box[2];
-        const float x2 = box[3];
+        const float x1 = (box[0]-0.5)*spatial_scale;
+        const float y1 = (box[1]-0.5)*spatial_scale;
+        const float x2 = (box[2]-0.5)*spatial_scale;
+        const float y2 = (box[3]-0.5)*spatial_scale;
 
         const int b_in = box_index_data[b];
         if (b_in < 0 || b_in >= batch_size) {
-            //printf("Error: batch_index %d out of range [0, %d)\n", b_in, batch_size);
-            throw std::runtime_error("Error: batch_index out of range [0, d)\n");
-            //exit(-1);
+            char msg[100];
+            sprintf(msg,"Error: batch_index %d out of range [0, %d)\n", b_in, batch_size);
+            throw std::runtime_error(msg);
         }
 
         const float height_scale =
-            (crop_height > 1)
-                ? (y2 - y1) * (image_height - 1) / (crop_height - 1)
-                : 0;
+            (crop_height > 1) ? (y2 - y1) / (crop_height - 1) : 0;
         const float width_scale =
-            (crop_width > 1) ? (x2 - x1) * (image_width - 1) / (crop_width - 1)
-                             : 0;
+            (crop_width > 1) ? (x2 - x1)  / (crop_width - 1) : 0;
 
         for (int y = 0; y < crop_height; ++y)
         {
             const float in_y = (crop_height > 1)
-                                   ? y1 * (image_height - 1) + y * height_scale
-                                   : 0.5 * (y1 + y2) * (image_height - 1);
+                                   ? y1 + y * height_scale
+                                   : 0.5f * (y1 + y2);
 
             if (in_y < 0 || in_y > image_height - 1)
             {
@@ -73,15 +70,15 @@ void CropAndResizePerBox(
                 continue;
             }
             
-            const int top_y_index = floorf(in_y);
-            const int bottom_y_index = ceilf(in_y);
+            const int top_y_index = std::floor(in_y);
+            const int bottom_y_index = std::ceil(in_y);
             const float y_lerp = in_y - top_y_index;
 
             for (int x = 0; x < crop_width; ++x)
             {
                 const float in_x = (crop_width > 1)
-                                       ? x1 * (image_width - 1) + x * width_scale
-                                       : 0.5 * (x1 + x2) * (image_width - 1);
+                                       ? x1 + x * width_scale
+                                       : 0.5f * (x1 + x2);
                 if (in_x < 0 || in_x > image_width - 1)
                 {
                     for (int d = 0; d < depth; ++d)
@@ -91,8 +88,8 @@ void CropAndResizePerBox(
                     continue;
                 }
             
-                const int left_x_index = floorf(in_x);
-                const int right_x_index = ceilf(in_x);
+                const int left_x_index = std::floor(in_x);
+                const int right_x_index = std::ceil(in_x);
                 const float x_lerp = in_x - left_x_index;
 
                 for (int d = 0; d < depth; ++d)
@@ -105,8 +102,7 @@ void CropAndResizePerBox(
                     const float bottom_right = pimage[bottom_y_index * image_width + right_x_index];
                     
                     const float top = top_left + (top_right - top_left) * x_lerp;
-                    const float bottom =
-                        bottom_left + (bottom_right - bottom_left) * x_lerp;
+                    const float bottom = bottom_left + (bottom_right - bottom_left) * x_lerp;
                         
                     corps_data[crop_elements * b + channel_elements * d + y * crop_width + x] = top + (bottom - top) * y_lerp;
                 }
@@ -117,13 +113,14 @@ void CropAndResizePerBox(
 }
 
 
-void crop_and_resize_forward(
+void align_roi_pool_forward(
     const py::array_t<float>& image,  //THFloatTensor * image,
     const py::array_t<float>& boxes,  //THFloatTensor * boxes,            // [y1, x1, y2, x2]
     const py::array_t<int>& box_inds, //THIntTensor * box_index,          // range in [0, batch_size)
     const float extrapolation_value,
     const int crop_height,
     const int crop_width,
+    const float spatial_scale,
     py::array_t<float> & crops        //THFloatTensor * crops
 ) {
     /*
@@ -166,13 +163,13 @@ void crop_and_resize_forward(
         depth,
         image_height,
         image_width,
+        spatial_scale,
 
-        boxes_data,     //THFloatTensor_data(boxes),
-        box_inds_data,  //THIntTensor_data(box_index),
-        0,
-        num_boxes,
+        boxes_data,     // THFloatTensor_data(boxes),
+        box_inds_data,  // THIntTensor_data(box_index),
+        num_boxes,      // the number of boxes
 
-        crops_data,     //THFloatTensor_data(crops),
+        crops_data,     // THFloatTensor_data(crops),
         crop_height,
         crop_width,
         extrapolation_value
@@ -180,10 +177,11 @@ void crop_and_resize_forward(
 
 }
 
-void crop_and_resize_backward(
+void align_roi_pool_backward(
     const py::array_t<float> & grads,   //THFloatTensor * grads,
     const py::array_t<float> & boxes,   //THFloatTensor * boxes,      // [y1, x1, y2, x2]
     const py::array_t<int> & box_inds,  //THIntTensor * box_index,    // range in [0, batch_size)
+    const float spatial_scale,
     py::array_t<float> & grads_image    //THFloatTensor * grads_image // resize to [bsize, c, hc, wc]
 )
 {   
@@ -238,22 +236,23 @@ void crop_and_resize_backward(
 
         const int b_in = box_index_data[b];
         if (b_in < 0 || b_in >= batch_size) {
-            //printf("Error: batch_index %d out of range [0, %d)\n", b_in, batch_size);
-            throw std::runtime_error("Error: batch_index out of range [0, d)\n");
+            char msg[100];
+            sprintf(msg,"Error: batch_index %d out of range [0, %d)\n", b_in, batch_size);
+            throw std::runtime_error(msg);
        }
 
         const float height_scale =
-            (crop_height > 1) ? (y2 - y1) * (image_height - 1) / (crop_height - 1)
+            (crop_height > 1) ? (y2 - y1) * spatial_scale / (crop_height - 1)
                               : 0;
         const float width_scale =
-            (crop_width > 1) ? (x2 - x1) * (image_width - 1) / (crop_width - 1)
+            (crop_width > 1) ? (x2 - x1) * spatial_scale / (crop_width - 1)
                              : 0;
 
         for (int y = 0; y < crop_height; ++y)
         {
             const float in_y = (crop_height > 1)
-                                   ? y1 * (image_height - 1) + y * height_scale
-                                   : 0.5 * (y1 + y2) * (image_height - 1);
+                                   ? y1 * spatial_scale + y * height_scale
+                                   : 0.5f * (y1 + y2) * spatial_scale;
             if (in_y < 0 || in_y > image_height - 1)
             {
                 continue;
@@ -265,8 +264,8 @@ void crop_and_resize_backward(
             for (int x = 0; x < crop_width; ++x)
             {
                 const float in_x = (crop_width > 1)
-                                       ? x1 * (image_width - 1) + x * width_scale
-                                       : 0.5 * (x1 + x2) * (image_width - 1);
+                                       ? x1 * spatial_scale + x * width_scale
+                                       : 0.5f * (x1 + x2) * spatial_scale;
                 if (in_x < 0 || in_x > image_width - 1)
                 {
                     continue;
@@ -294,12 +293,13 @@ void crop_and_resize_backward(
 }
 
 
-PYBIND11_MODULE(crop_and_resize_mh, m) {
-	m.doc() = "do crop and resize forward backward with pybind11";
+PYBIND11_MODULE(align_roi_pool_mh, m) {
+	m.doc() = "do align roi pooling forward backward with pybind11";
 	m.attr("__version__") = "0.0.1";
 	m.def("add", &add, "for test");
-	m.def("crop_and_resize_forward", &crop_and_resize_forward, "A function does crop and resize forward", \
-        py::arg("image"), py::arg("boxes"), py::arg("box_inds"), py::arg("extrapolation_value"), py::arg("crop_height"), py::arg("crop_width"), py::arg("crops"));
-	m.def("crop_and_resize_backward", &crop_and_resize_backward, "A function does crop and resize backward", \
-		py::arg("grads"), py::arg("boxes"), py::arg("box_inds"), py::arg("grads_image"));
+	m.def("align_roi_pool_forward", &align_roi_pool_forward, "A function does align roi forward", \
+        py::arg("image"), py::arg("boxes"), py::arg("box_inds"), py::arg("extrapolation_value"), \
+        py::arg("crop_height"), py::arg("crop_width"), py::arg("spatial_scale"), py::arg("crops"));
+	m.def("align_roi_pool_backward", &align_roi_pool_backward, "A function does align roi backward", \
+		py::arg("grads"), py::arg("boxes"), py::arg("box_inds"), py::arg("spatial_scale"), py::arg("grads_image"));
 }

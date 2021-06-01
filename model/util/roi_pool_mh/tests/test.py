@@ -1,6 +1,6 @@
 import torch as t
 import roi_pool_mh as mh
-from torchvision.ops import RoIPool
+from torchvision.ops import RoIPool, RoIAlign
 
 ###############################################################################################################
 ## it is a version which call c++ implementation, you can get pure py version in roi_pool.py under util floder
@@ -51,16 +51,19 @@ rois = t.tensor([[4,4,7,5], [1,3,3,7]], dtype=t.float32)
 #scale=1.0/16
 scale=1.0/2
 roi_size=7
-roi_pooling_lib = RoIPool((roi_size,roi_size),  scale)
+roi_pooling_lib1 = RoIPool((roi_size,roi_size),  scale)
 roi_indices = t.zeros(rois.shape[0])
 indices_and_rois = t.cat([roi_indices[:, None], rois], dim=1)
-feat1 = roi_pooling_lib(feat_x, indices_and_rois)
+feat1_1 = roi_pooling_lib1(feat_x, indices_and_rois)
+
+roi_pooling_lib2 = RoIAlign((roi_size,roi_size), spatial_scale=scale, sampling_ratio=-1, aligned=False)
+feat1_2 = roi_pooling_lib2(feat_x, indices_and_rois)
 
 roi_pooling = ROI_Pooling_C(roi_size, scale)
 feat2 = roi_pooling.apply(feat_x, rois) # 128,512,7,7
 
-print(t.all(feat1==feat2))
-assert(t.all(feat1==feat2))
+print(t.all(feat1_1==feat2))
+assert(t.all(feat1_1==feat2))
 
 # test backward
 f1 = feat1.sum()
