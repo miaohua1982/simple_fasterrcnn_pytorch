@@ -4,7 +4,7 @@ from torch.nn import functional as F
 from model.util.align_roi_pool import RoIAlign_C
 
 
-def pyramid_roi_align(inputs, pool_size, image_shape):
+def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
     """Implements ROI Pooling on multiple levels of the feature pyramid.
 
     Params:
@@ -22,18 +22,6 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
     The width and height are those specific in the pool_shape in the layer
     constructor.
     """
-
-    # Currently only supports batchsize 1
-    for i in range(len(inputs)):
-        inputs[i] = inputs[i].squeeze(0)
-
-    # Crop boxes [batch, num_boxes, (x1, y1, x2, y2)] in normalized coords
-    boxes = inputs[0]
-
-    # Feature Maps. List of feature maps from different level of the
-    # feature pyramid. Each is [batch, height, width, channels]
-    feature_maps = inputs[1:]
-
     # Assign each ROI to a level in the pyramid based on the ROI area.
     x1, y1, x2, y2 = boxes.chunk(4, dim=1)
     h = y2 - y1
@@ -63,9 +51,6 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
         # Keep track of which box is mapped to which level
         box_to_level.append(ix.data)
 
-        # Stop gradient propagation to ROI proposals
-        level_boxes = level_boxes.detach()
-
         # Crop and Resize
         # From Mask R-CNN paper: "We sample four regular locations, so
         # that we can evaluate either max or average pooling. In fact,
@@ -78,15 +63,19 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
         ind = torch.zeros(level_boxes.size()[0]).int()
         if torch.cuda.is_available():
             ind = ind.cuda()
-        feature_maps[i] = feature_maps[i].unsqueeze(0)  #CropAndResizeFunction needs batch dimension
-        scale = feature_maps[i].shape[-1]/image_shape[-1]
+        
+        scale = feature_maps[i].shape[-1]/image_shape[-1]   # calc the scale from current feature map to input image
         align_roi = RoIAlign_C(pool_size, pool_size, scale)
+        # feature_maps[i]: [batch_size, channels, height, width]
+        # level_boxes: [num of boxes, 4]
+        # ind: [num of boxes], all zeros, because we only support batch size = 1
+        # pooled_features : [num of boxes, channels, pool_height, pool_width]
         pooled_features = align_roi.apply(feature_maps[i], level_boxes, ind)
 
-        # pooled_features = CropAndResizeFunction(pool_size, pool_size, 0)(feature_maps[i], level_boxes, ind)
-        pooled.append(pooled_features)
+        pooled.append(pooled_features.squeeze(0))
 
     # Pack pooled features into one tensor
+    # pooled: [total num of boxes, channels, pool_hegith, pool_width]
     pooled = torch.cat(pooled, dim=0)
 
     # Pack box_to_level mapping into one array and add another
@@ -97,6 +86,7 @@ def pyramid_roi_align(inputs, pool_size, image_shape):
     _, box_to_level = torch.sort(box_to_level)
     pooled = pooled[box_to_level, :, :]
 
+    # pooled: [total num of boxes, channels, pool_hegith, pool_width]
     return pooled
 
 class RoIHeader(nn.Module):
@@ -118,7 +108,7 @@ class RoIHeader(nn.Module):
         self.linear_bbox = nn.Linear(1024, num_classes * 4)
 
     def forward(self, x, rois):
-        x = pyramid_roi_align([rois]+x, self.pool_size, self.image_shape)
+        x = pyramid_roi_align(x, rois, self.pool_size, self.image_shape)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -157,7 +147,7 @@ class MaskHeader(nn.Module):
         self.relu = nn.ReLU(inplace=True)
 
     def forward(self, x, rois):
-        x = pyramid_roi_align([rois] + x, self.pool_size, self.image_shape)
+        x = pyramid_roi_align(x, rois, self.pool_size, self.image_shape)
         x = self.conv1(self.padding(x))
         x = self.bn1(x)
         x = self.relu(x)

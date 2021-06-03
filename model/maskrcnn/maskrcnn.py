@@ -10,7 +10,7 @@ from model.util.bbox_opt import gen_pyramid_anchors, delta2box
 from config.config import mask_running_args
 from model.maskrcnn.feature_pyramid_network import FeaturePyramidNetwork
 from model.maskrcnn.region_proposal_network import RegionProposalNetwork, rpn_to_proposal
-from model.fasterrcnn.roi_header import RoIHeader
+from model.fasterrcnn.roi_header import RoIHeader, MaskHeader
 from model.proposal.proposal_creator import ProposalCreator
 from model.proposal.anchor_target_creator import AnchorTargetCreator
 from model.proposal.proposal_target_creator import ProposalTargetCreator
@@ -107,12 +107,12 @@ class MaskRCNN(nn.Module):
         feats = self.backbone(x)
 
         # feature pyramid network, here we get p2, p3, p4, p5, p6, all of them have 256 channels
-        fpn_feats = self.rpn(feats)
-
+        fpn_feats = self.fpn(feats)
+        mask_header_feats = fpn_feats[:-1]
         # rpn, 
         # rpn_digits & rpn_reg_loc with shape (n,2) & (n,4), n=feat.h*feat.w*9
-        # rois with shape (n,4), n is at most 2000(at train mode) or 1000(at test mode), rois is np.array
-        rpn_digits, rpn_loc_deltas, rpn_rois = rpn_to_proposal(self.rpn, proposal_creator, fpn_feats, self.base_anchor_boxes, img_size, scale, self.training)
+        # rpn_rois with shape (n,4), n is at most 2000(at train mode) or 1000(at test mode), rois is np.array
+        rpn_digits, rpn_loc_deltas, rpn_rois = rpn_to_proposal(self.rpn, self.proposal_creator, fpn_feats, self.base_anchor_boxes, img_size, scale, self.training)
 
         # anchor target creator
         if self.training:
@@ -143,17 +143,17 @@ class MaskRCNN(nn.Module):
         # gt_sample_roi_indices: 128*1, the indices for roi, default is 0
         # gt_mask_scores: 128*28*28
         if self.training:
-            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices, gt_mask_scores = self.proposal_target_creator(rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
+            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices, gt_mask_scores = self.proposal_target_creator(rpn_rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
         else:
-            sample_rois = rois
-            gt_sample_roi_indices = np.zeros(sample_rois.shape[0], dtype=np.float32)
+            sample_rois = rpn_rois
+
         # head network output, classes
         # roi_reg_locs shape:[128,classes*4]
         # roi_scores shape:[128,classes]
         sample_rois = t.from_numpy(sample_rois).cuda() if t.cuda.is_available() else t.from_numpy(sample_rois)
-        gt_sample_roi_indices = t.from_numpy(gt_sample_roi_indices).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_roi_indices)
-        roi_scores, _, roi_reg_locs  = self.roi_header(feat, sample_rois)
-        mask_scores = self.mask_header(feat, sample_rois) # with shape [num of box, num of cls, 28, 28]
+        roi_scores, _, roi_reg_locs  = self.roi_header(mask_header_feats, sample_rois)
+        # with shape [num of box, num of cls, 28, 28]
+        mask_scores = self.mask_header(mask_header_feats, sample_rois)
 
         if self.training:
             # reshape roi locs to n*(class_num+1)*4, plus 1 is for background
@@ -175,8 +175,10 @@ class MaskRCNN(nn.Module):
         else:
             roi_score_loss = 0
             roi_reg_loss = 0
+            mask_score_loss = 0
 
-        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss #, roi_reg_locs, roi_scores, sample_rois
+        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, mask_score_loss
+        
 
     def _suppress(self, raw_cls_bbox, raw_prob):
         bbox = list()
