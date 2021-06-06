@@ -48,7 +48,7 @@ def scale_lr(optimizer, decay=0.1):
 
 def eval(model, opt, test_num=5000):
     # load eval dataset
-    dataset = Voc_Dataset(opt.dataset_base_path,min_size=opt.min_img_size, max_size=opt.max_img_size, split='test')
+    dataset = Coco_Dataset(opt.dataset_base_path,min_size=opt.min_img_size, max_size=opt.max_img_size, split='val2017')
     test_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=True)
 
     # set to eval mode
@@ -90,7 +90,7 @@ def eval(model, opt, test_num=5000):
 
 def train(opt):
     # load dataset
-    dataset = Coco_Dataset(opt.dataset_base_path, min_size=opt.min_img_size, max_size=opt.max_img_size, split='trainval')
+    dataset = Coco_Dataset(opt.dataset_base_path, min_size=opt.min_img_size, max_size=opt.max_img_size, split='train2017')
     train_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=False)
 
     # model
@@ -127,7 +127,11 @@ def train(opt):
         avg_total_loss = 0.0
         # one epoch
         for idx, one_obj_ds in tqdm(enumerate(train_dataset)):
-            img, gt_boxes, gt_labels, _, scale = one_obj_ds
+            img, prop = one_obj_ds
+            gt_boxes = prop['gt_boxes']
+            gt_labels = prop['gt_labels']
+            gt_masks = prop['gt_masks']
+            scale = prop['scale']
 
             if t.cuda.is_available():
                 img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()

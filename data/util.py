@@ -4,6 +4,7 @@ import random
 from skimage import transform as sktsf
 import torch as t
 from torchvision import transforms as tvtsf
+import scipy.ndimage
 
 def inverse_normalize(img):
     # approximate un-normalize for visualize
@@ -45,6 +46,7 @@ def preprocess(img, min_size=600, max_size=1000):
     scale2 = max_size / max(H, W)
     scale = min(scale1, scale2)
     img = img / 255.
+    # the same with scipy.misc.imresize
     img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
     # both the longer and shorter should be less than
     # max_size and min_size
@@ -87,7 +89,6 @@ def read_image(path, dtype=np.float32, color=True):
         # transpose (H, W, C) -> (C, H, W)
         return img.transpose((2, 0, 1))
 
-
 def resize_bbox(bbox, in_size, out_size):
     """Resize bounding boxes according to image resize.
 
@@ -120,6 +121,15 @@ def resize_bbox(bbox, in_size, out_size):
     bbox[:, 2] = x_scale * bbox[:, 2]
     return bbox
 
+def resize_mask(mask, in_size, out_size):
+    scale = out_size[0]/in_size[0]
+    # two method is OK
+    # order=1 means bilinear
+    #mask1 = sktsf.resize(mask.astype(float), (mask.shape[0], out_size[0], out_size[1]), order=1) 
+    #mask1 = np.where(mask1 >= 0.5, 1, 0)
+    mask = scipy.ndimage.zoom(mask, zoom=[1, scale, scale], order=0)
+
+    return mask
 
 def flip_bbox(bbox, size, y_flip=False, x_flip=False):
     """Flip bounding boxes accordingly.
@@ -160,9 +170,37 @@ def flip_bbox(bbox, size, y_flip=False, x_flip=False):
         bbox[:, 2] = x_max
     return bbox
 
+def flip_mask(masks, y_flip=False, x_flip=False):
+    """Flip masks accordingly.
+
+    The masks array is expected to be packed into a three dimensional
+    tensor of shape :math:`(R, H, W)`, where :math:`R` is the number of
+    masks in the image. The second & third axises represent height and 
+    width of the masks. They are :math:`(H, W)`,
+    where the H & W denotes the height and widtg of the image.
+
+    Args:
+        masks (~numpy.ndarray): An array whose shape is :math:`(R, H, W)`.
+            :math:`R` is the number of masks.
+        y_flip (bool): Flip mask according to a vertical flip of
+            an image.
+        x_flip (bool): Flip mask according to a horizontal flip of
+            an image.
+
+    Returns:
+        ~numpy.ndarray:
+        Masks flipped according to the given flips.
+
+    """
+    if y_flip:
+        masks = masks[:, ::-1, :]
+    if x_flip:
+        masks = masks[:, :, ::-1]
+
+    return masks.copy()
 
 def random_flip(img, y_random=False, x_random=False,
-                return_param=False, copy=False):
+                return_param=False, copy=True):
     """Randomly flip an image in vertical or horizontal direction.
 
     Args:
@@ -209,3 +247,15 @@ def random_flip(img, y_random=False, x_random=False,
         return img, {'y_flip': y_flip, 'x_flip': x_flip}
     else:
         return img
+
+def xmin_ymin_wh_2_xyxy(box):
+    xmin = box[:,[0]]
+    ymin = box[:,[1]]
+    w = box[:,[2]]
+    h = box[:,[3]]
+    xmax = xmin+w
+    ymax = ymin+h
+
+    new_box = np.concatenate([xmin, ymin, xmax, ymax], axis=1)
+
+    return new_box

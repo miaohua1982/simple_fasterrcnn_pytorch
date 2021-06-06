@@ -72,7 +72,7 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
         # pooled_features : [num of boxes, channels, pool_height, pool_width]
         pooled_features = align_roi.apply(feature_maps[i], level_boxes, ind)
 
-        pooled.append(pooled_features.squeeze(0))
+        pooled.append(pooled_features)
 
     # Pack pooled features into one tensor
     # pooled: [total num of boxes, channels, pool_hegith, pool_width]

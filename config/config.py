@@ -78,6 +78,9 @@ class Maskrcnn_Config(ConfigBase):
     # backbone network
     backbone = "resnet101"
     num_classes = 80 + 1     # coco dataset has 80 classes
+    min_img_size = 800
+    max_img_size = 1024
+
     image_size = (1024,1024)
     # base anchor box generation
     backbone_stride = [4,8,16,32,64]
