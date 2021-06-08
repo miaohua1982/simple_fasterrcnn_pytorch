@@ -41,7 +41,7 @@ def smooth_l1_loss(pred_loc, gt_loc, gt_label, sigma=1):
     else:
         in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight)] = 1  #remove cuda for cpu running
     loc_loss = _smooth_l1_loss(pred_loc, gt_loc, in_weight.detach(), sigma)
-    # Normalize by total number of negtive and positive rois.
+    # Normalize by total number of negative and positive rois.
     loc_loss /= ((gt_label >= 0).sum().float()) # ignore gt_label==-1 for rpn_loss
     return loc_loss
 
@@ -64,7 +64,8 @@ class FasterRCNN(nn.Module):
         # anchor target creator for training rpn network
         # its task is to choose *n_sample*(256) sample from anchor boxes
         self.anchor_target_creator = AnchorTargetCreator(n_sample=running_args.n_sample, pos_ratio=running_args.pos_ratio, \
-                                                         neg_iou_thresh=running_args.neg_iou_thresh, pos_iou_thresh=running_args.pos_iou_thresh)
+                                                         neg_iou_thresh=running_args.neg_iou_thresh, pos_iou_thresh=running_args.pos_iou_thresh,\
+                                                         loc_normalize_mean=running_args.loc_normalize_mean, loc_normalize_std=running_args.loc_normalize_std)
         
         # proposal target creator for training roi head network
         # its task is to choose *n_sample*(128) sample from proposal rois which is generated from rpn's proposal creator
@@ -98,7 +99,7 @@ class FasterRCNN(nn.Module):
         n, ch, h, w = feat.shape
         pre_defined_anchor_boxes = shift_anchor_boxes(self.base_anchor_boxes, h, w, self.feat_stride) # shape(n, 4), n=h*w*9
 
-        # rpn, 
+        # rpn
         # rpn_score & rpn_reg_loc with shape (n,1) & (n,2), n=feat.h*feat.w*9
         # rois with shape (n,4), n is at most 6000(at train mode) or 300(at test mode), rois is np.array
         rpn_score, rpn_reg_loc, rois = self.rpn(feat, pre_defined_anchor_boxes, img_size, scale)
@@ -163,7 +164,7 @@ class FasterRCNN(nn.Module):
             roi_score_loss = 0
             roi_reg_loss = 0
 
-        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss #, roi_reg_locs, roi_scores, sample_rois
+        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_reg_locs, roi_scores, sample_rois
 
     def _suppress(self, raw_cls_bbox, raw_prob):
         bbox = list()

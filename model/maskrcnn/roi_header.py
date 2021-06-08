@@ -68,7 +68,7 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
         align_roi = RoIAlign_C(pool_size, pool_size, scale)
         # feature_maps[i]: [batch_size, channels, height, width]
         # level_boxes: [num of boxes, 4]
-        # ind: [num of boxes], all zeros, because we only support batch size = 1
+        # ind: [num of boxes]
         # pooled_features : [num of boxes, channels, pool_height, pool_width]
         pooled_features = align_roi.apply(feature_maps[i], level_boxes, ind)
 
@@ -90,11 +90,10 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
     return pooled
 
 class RoIHeader(nn.Module):
-    def __init__(self, depth, pool_size, image_shape, num_classes):
+    def __init__(self, depth, pool_size, num_classes):
         super(RoIHeader, self).__init__()
         self.depth = depth
         self.pool_size = pool_size
-        self.image_shape = image_shape
         self.num_classes = num_classes
         self.conv1 = nn.Conv2d(self.depth, 1024, kernel_size=self.pool_size, stride=1)
         self.bn1 = nn.BatchNorm2d(1024, eps=0.001, momentum=0.01)
@@ -107,8 +106,8 @@ class RoIHeader(nn.Module):
 
         self.linear_bbox = nn.Linear(1024, num_classes * 4)
 
-    def forward(self, x, rois):
-        x = pyramid_roi_align(x, rois, self.pool_size, self.image_shape)
+    def forward(self, x, rois, image_shape):
+        x = pyramid_roi_align(x, rois, self.pool_size, image_shape)
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
@@ -126,7 +125,7 @@ class RoIHeader(nn.Module):
         return [mrcnn_class_logits, mrcnn_probs, mrcnn_bbox]
 
 class MaskHeader(nn.Module):
-    def __init__(self, depth, pool_size, image_shape, num_classes):
+    def __init__(self, depth, pool_size, num_classes):
         super(MaskHeader, self).__init__()
         self.depth = depth
         self.pool_size = pool_size
@@ -146,8 +145,8 @@ class MaskHeader(nn.Module):
         self.sigmoid = nn.Sigmoid()
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x, rois):
-        x = pyramid_roi_align(x, rois, self.pool_size, self.image_shape)
+    def forward(self, x, rois, image_shape):
+        x = pyramid_roi_align(x, rois, self.pool_size, image_shape)
         x = self.conv1(self.padding(x))
         x = self.bn1(x)
         x = self.relu(x)

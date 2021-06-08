@@ -10,10 +10,10 @@ from model.util.bbox_opt import gen_pyramid_anchors, delta2box
 from config.config import mask_running_args
 from model.maskrcnn.feature_pyramid_network import FeaturePyramidNetwork
 from model.maskrcnn.region_proposal_network import RegionProposalNetwork, rpn_to_proposal
-from model.fasterrcnn.roi_header import RoIHeader, MaskHeader
+from model.maskrcnn.roi_header import RoIHeader, MaskHeader
 from model.proposal.proposal_creator import ProposalCreator
 from model.proposal.anchor_target_creator import AnchorTargetCreator
-from model.proposal.proposal_target_creator import ProposalTargetCreator
+from model.proposal.proposal_target_creator_m import ProposalTargetCreator   # maskrcnn version proposal target creator
 from functools import wraps 
 
 def nograd(f):
@@ -43,7 +43,7 @@ def smooth_l1_loss(pred_loc, gt_loc, gt_label, sigma=1):
     else:
         in_weight[(gt_label > 0).view(-1, 1).expand_as(in_weight)] = 1  #remove cuda for cpu running
     loc_loss = _smooth_l1_loss(pred_loc, gt_loc, in_weight.detach(), sigma)
-    # Normalize by total number of negtive and positive rois.
+    # Normalize by total number of negative and positive rois.
     loc_loss /= ((gt_label >= 0).sum().float()) # ignore gt_label==-1 for rpn_loss
     return loc_loss
 
@@ -61,8 +61,8 @@ class MaskRCNN(nn.Module):
         
         # the roi header network
         # the class including the bg
-        self.roi_header = RoIHeader(depth=256, roi_size=mask_running_args.roi_size, image_shape=mask_running_args.image_size, num_classes=n_fg_class+1)
-        self.mask_header = MaskHeader(depth=256, pool_size=mask_running_args.mask_roi_size, image_shape=mask_running_args.image_size, num_classes=n_fg_class+1)
+        self.roi_header = RoIHeader(depth=256, pool_size=mask_running_args.roi_size, num_classes=n_fg_class+1)
+        self.mask_header = MaskHeader(depth=256, pool_size=mask_running_args.mask_roi_size, num_classes=n_fg_class+1)
 
         # proposal creator
         self.proposal_creator = ProposalCreator(mask_running_args.pre_train_num, mask_running_args.post_train_num, mask_running_args.pre_test_num, \
@@ -72,20 +72,16 @@ class MaskRCNN(nn.Module):
         # anchor target creator for training rpn network
         # its task is to choose *n_sample*(256) sample from anchor boxes
         self.anchor_target_creator = AnchorTargetCreator(n_sample=mask_running_args.n_sample, pos_ratio=mask_running_args.pos_ratio, \
-                                                         neg_iou_thresh=mask_running_args.neg_iou_thresh, pos_iou_thresh=mask_running_args.pos_iou_thresh)
+                                                         neg_iou_thresh=mask_running_args.neg_iou_thresh, pos_iou_thresh=mask_running_args.pos_iou_thresh,\
+                                                         loc_normalize_mean=mask_running_args.loc_normalize_mean, loc_normalize_std=mask_running_args.loc_normalize_std)
         
         # proposal target creator for training roi head network
         # its task is to choose *n_sample*(128) sample from proposal rois which is generated from rpn's proposal creator
         self.proposal_target_creator = ProposalTargetCreator(n_sample=mask_running_args.n_roi_sample, pos_ratio=mask_running_args.pos_roi_ratio, \
                                                           pos_iou_thresh=mask_running_args.pos_roi_iou_thresh, neg_iou_thresh_hi=mask_running_args.neg_iou_thresh_hi, \
                                                           neg_iou_thresh_lo=mask_running_args.neg_iou_thresh_lo, loc_normalize_mean=mask_running_args.loc_normalize_mean, \
-                                                          loc_normalize_std=mask_running_args.loc_normalize_std)
+                                                          loc_normalize_std=mask_running_args.loc_normalize_std, mask_size=mask_running_args.gt_mask_size)
         
-        # base anchor boxes, with shape [R, 4]
-        # R=len(scales)*len(ratios)*len(feat_stride)*int(feat_height/anchor_stride)*int(feat_width/anchor_stride)
-        self.base_anchor_boxes = gen_pyramid_anchors(mask_running_args.anchor_sacles, mask_running_args.anchor_ratios, \
-                                                     mask_running_args.image_size, mask_running_args.backbone_stride, \
-                                                     mask_running_args.anchor_stride)
 
         # class number(add one to label background)
         self.n_class = n_fg_class+1
@@ -112,6 +108,10 @@ class MaskRCNN(nn.Module):
         # rpn, 
         # rpn_digits & rpn_reg_loc with shape (n,2) & (n,4), n=feat.h*feat.w*9
         # rpn_rois with shape (n,4), n is at most 2000(at train mode) or 1000(at test mode), rois is np.array
+        # base anchor boxes, with shape [R, 4]
+        # R=len(scales)*len(ratios)*len(feat_stride)*int(feat_height/anchor_stride)*int(feat_width/anchor_stride)
+        self.base_anchor_boxes = gen_pyramid_anchors(mask_running_args.anchor_sacles, mask_running_args.anchor_ratios, \
+                                                     img_size, mask_running_args.backbone_stride, mask_running_args.anchor_stride)
         rpn_digits, rpn_loc_deltas, rpn_rois = rpn_to_proposal(self.rpn, self.proposal_creator, fpn_feats, self.base_anchor_boxes, img_size, scale, self.training)
 
         # anchor target creator
@@ -140,10 +140,10 @@ class MaskRCNN(nn.Module):
         # sample_rois 128*4(xy,xy), rois
         # gt_sample_locs: 128*4(xywh scale & offset), delta between sample rois and gt boxes 
         # gt_sample_labels: 128*1 labels including background as 0
-        # gt_sample_roi_indices: 128*1, the indices for roi, default is 0
-        # gt_mask_scores: 128*28*28
+        # gt_pooled_masks: 128*28*28
         if self.training:
-            sample_rois, gt_sample_locs, gt_sample_labels, gt_sample_roi_indices, gt_mask_scores = self.proposal_target_creator(rpn_rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
+            sample_rois, gt_sample_locs, gt_sample_labels, gt_pooled_masks, gt_pos_num = \
+                self.proposal_target_creator(rpn_rois, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy(), gt_masks[0].cpu().numpy())
         else:
             sample_rois = rpn_rois
 
@@ -151,9 +151,9 @@ class MaskRCNN(nn.Module):
         # roi_reg_locs shape:[128,classes*4]
         # roi_scores shape:[128,classes]
         sample_rois = t.from_numpy(sample_rois).cuda() if t.cuda.is_available() else t.from_numpy(sample_rois)
-        roi_scores, _, roi_reg_locs  = self.roi_header(mask_header_feats, sample_rois)
-        # with shape [num of box, num of cls, 28, 28]
-        mask_scores = self.mask_header(mask_header_feats, sample_rois)
+        roi_scores, _, roi_reg_locs  = self.roi_header(mask_header_feats, sample_rois, img_size)
+        # with shape [num of rois, num of cls, 28, 28]
+        mask_scores = self.mask_header(mask_header_feats, sample_rois, img_size)
 
         if self.training:
             # reshape roi locs to n*(class_num+1)*4, plus 1 is for background
@@ -171,7 +171,7 @@ class MaskRCNN(nn.Module):
 
             roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, mask_running_args.roi_sigma)
             roi_score_loss = F.cross_entropy(roi_scores, gt_sample_labels)
-            mask_score_loss = F.binary_cross_entropy(mask_scores, gt_mask_scores)
+            mask_score_loss = F.binary_cross_entropy(mask_scores[:gt_pos_num], gt_pooled_masks[:gt_pos_num])
         else:
             roi_score_loss = 0
             roi_reg_loss = 0

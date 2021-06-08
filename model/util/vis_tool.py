@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib
 import torch as t
 import visdom
+import skimage.io
 
 matplotlib.use('Agg') # used before import pyplot, make pic do not show on screen
 from matplotlib import pyplot as plot
@@ -35,6 +36,20 @@ VOC_BBOX_LABEL_NAMES = [
     'tv',
 ]
 
+
+def vis_coco_img(img, img_id, coco):
+    fig = plot.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    
+    # draw img
+    ax.imshow(img)
+    
+    # show anns
+    annIds = coco.getAnnIds(imgIds=img_id)     
+    anns = coco.loadAnns(annIds)                                  
+    coco.showAnns(anns)
+
+    return ax
 
 def vis_image(img, ax=None):
     """Visualize a color image.
@@ -160,6 +175,10 @@ def fig4vis(fig):
     # HWC->CHW
     return img_data[:, :, :3].transpose((2, 0, 1)) / 255.
 
+def visdom_mask(img, img_id, coco):
+    ax = vis_coco_img(img, img_id, coco)
+    data = fig4vis(ax)
+    return data
 
 def visdom_bbox(*args, **kwargs):
     fig = vis_bbox(*args, **kwargs)

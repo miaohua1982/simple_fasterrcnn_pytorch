@@ -3,6 +3,7 @@ from PIL import Image
 import random
 from skimage import transform as sktsf
 import torch as t
+from torch.nn import functional as F
 from torchvision import transforms as tvtsf
 import scipy.ndimage
 
@@ -127,7 +128,10 @@ def resize_mask(mask, in_size, out_size):
     # order=1 means bilinear
     #mask1 = sktsf.resize(mask.astype(float), (mask.shape[0], out_size[0], out_size[1]), order=1) 
     #mask1 = np.where(mask1 >= 0.5, 1, 0)
-    mask = scipy.ndimage.zoom(mask, zoom=[1, scale, scale], order=0)
+    # mask1 = F.interpolate(t.from_numpy(mask).float()[None], scale_factor=[scale, scale], mode='bilinear')
+    # mask1 = t.where(mask1>=0.5, 1, 0) 
+    # or mask1 = F.interpolate(t.from_numpy(mask).float()[None], scale_factor=[scale, scale], mode='nearest'), no need where
+    mask = scipy.ndimage.zoom(mask, zoom=[1, scale, scale], order=0)  # or order=1
 
     return mask
 

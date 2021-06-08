@@ -1,5 +1,8 @@
 from __future__ import  absolute_import
 
+import matplotlib
+matplotlib.use('Agg')
+
 import os
 import ipdb
 import time
@@ -13,7 +16,7 @@ from model.util.eval_ap import eval_detection_voc
 from model.backbone.resnet import ResnetBackbone
 from model.maskrcnn.maskrcnn import MaskRCNN
 
-from model.util.vis_tool import Visualizer, visdom_bbox
+from model.util.vis_tool import Visualizer, visdom_bbox, visdom_mask
 from tqdm import tqdm
 
 def set_seed_everywhere(seed, cuda):
@@ -132,6 +135,7 @@ def train(opt):
             gt_labels = prop['gt_labels']
             gt_masks = prop['gt_masks']
             scale = prop['scale']
+            img_id = prop['image_id']
 
             if t.cuda.is_available():
                 img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()
@@ -168,17 +172,23 @@ def train(opt):
                                      gt_labels[0].cpu().numpy())
                 vis.img('gt_img', gt_img)
 
-                # plot predicti bboxes
+                # plot ground truth mask
+                gt_mask_img = visdom_mask(ori_img, img_id, dataset.coco)
+                vis.img('gt_mask_img', gt_mask_img)
+
+                # plot predict bboxes
                 maskrcnn.eval()
-                pboxes, plabels, pscores = maskrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
+                pre_boxes, pre_labels, pre_scores = maskrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
                 maskrcnn.train()
                 # we need scale back
-                #pboxes = pboxes/scale
+                # show predict img
                 pred_img = visdom_bbox(ori_img,
-                                       pboxes.cpu().numpy(),
-                                       plabels.cpu().numpy(),
-                                       pscores.cpu().numpy())
+                                       pre_boxes.cpu().numpy(),
+                                       pre_labels.cpu().numpy(),
+                                       pre_scores.cpu().numpy())
                 vis.img('pred_img', pred_img)
+                # show predict mask img
+
 
         # eval
         result = eval(maskrcnn, opt)

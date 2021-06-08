@@ -23,7 +23,7 @@ class ProposalCreator:
         anchors(np.array): the pre defined anchor box in feature map, with shape [h*w*9,4],
                            where h & w is feat map size
         rpn_reg_loc(np.array): the rpn loc regression output, the scale & offset from gt boxes
-        rpn_score(np.array): the rpn socre output, note its only about foreground, with shape [h*w*9, ]
+        rpn_score(np.array): the rpn score output, note its only about foreground, with shape [h*w*9, ]
         '''
         # 0. check wether is training
         if is_training:

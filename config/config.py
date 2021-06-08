@@ -82,10 +82,14 @@ class Maskrcnn_Config(ConfigBase):
     max_img_size = 1024
 
     image_size = (1024,1024)
+    # set for instance json file
+    dataset_base_path = 'E:\\Datasets\\COCO2017'
     # base anchor box generation
     backbone_stride = [4,8,16,32,64]
     anchor_ratios = [0.5,1,2]
     anchor_scales = [32,64,128,256,512]
+    # loss visualize
+    vis_env='maskrcnn'
     # generate anchor box for every cell in feature map
     anchor_stride = 1
     # proposal creator for choosing good samples to train roi head network
@@ -94,7 +98,9 @@ class Maskrcnn_Config(ConfigBase):
     pre_test_num=6000
     post_test_num=1000
     skip_small_obj=True  #wether to skip small object
-
+    # proposal target creator
+    gt_mask_size = (28, 28)
+    
     # roi header
     mask_roi_size = 14
 

@@ -51,8 +51,8 @@ class Coco_Dataset(object):
         img, flip_param = random_flip(img, x_random=True, return_param=True)
         prop['gt_boxes'] = flip_bbox(prop['gt_boxes'], (img.shape[1], img.shape[2]), x_flip=flip_param['x_flip'])
         prop['gt_masks'] = flip_mask(prop['gt_masks'], x_flip=flip_param['x_flip'])
-
-        return img, prop
+        # note mask's dtype is uint8
+        return img, prop 
 
     def load_img(self, img_id):
         img_name = self.coco.imgs[img_id]['file_name']
@@ -67,10 +67,12 @@ class Coco_Dataset(object):
         boxes = []
         labels = []
         masks = []
+        is_crowd = []
 
         if len(anns) > 0:
             for ann in anns:
                 boxes.append(ann['bbox'])
+                is_crowd.append(ann['iscrowd'])
                 name = self.classes_map[ann["category_id"]]
                 labels.append(self.classes_to_idx[name]) # label is from 0~79
                 mask = self.coco.annToMask(ann)
@@ -79,13 +81,15 @@ class Coco_Dataset(object):
 
             boxes = xmin_ymin_wh_2_xyxy(np.array(boxes, dtype=np.float32))
             labels = np.array(labels)
+            is_crowd = np.array(is_crowd)
             masks = np.stack(masks)
             # you can use following code to generate boxes from mask
             # the only different from coco api annToMask is, my code generates interger axises
             # and api generates float versions, there are maybe a little differences in value
             # boxes = self.getbox_from_mask(masks.numpy())
 
-        prop = dict(image_id=np.array([img_id]), gt_boxes=boxes, gt_labels=labels, gt_masks=masks)
+        prop = dict(image_id=np.array([img_id]), iscrowd=is_crowd, gt_boxes=boxes, gt_labels=labels, gt_masks=masks)
+
         return prop
     
     def getbox_from_mask(self, gt_masks):
@@ -109,6 +113,6 @@ class Coco_Dataset(object):
         return np.array(boxes)
 
 if __name__ == '__main__':
-    coco = Coco_Dataset('../datasets/coco2017',800, 1024, 'train2017')
+    coco = Coco_Dataset('E:\\Datasets\\COCO2017',800, 1024, 'train2017')
     img, prop = coco[0]
     print(prop['scale'])

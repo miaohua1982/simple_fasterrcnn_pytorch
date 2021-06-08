@@ -6,11 +6,13 @@ from model.util.iou import calc_iou
 
 
 class AnchorTargetCreator:
-    def __init__(self, n_sample, pos_ratio, neg_iou_thresh, pos_iou_thresh):
+    def __init__(self, n_sample, pos_ratio, neg_iou_thresh, pos_iou_thresh, loc_normalize_mean, loc_normalize_std):
         self.n_sample = n_sample                  # default value is 256, you can change it in config.py
         self.pos_ratio = pos_ratio                # default value is 0.5, means that in n_sample samples, half is positive, half is negative
         self.neg_iou_thresh = neg_iou_thresh
         self.pos_iou_thresh = pos_iou_thresh
+        self.loc_normalize_mean = np.array(loc_normalize_mean) # default value is [0,0,0,0], you can change it in config.py
+        self.loc_normalize_std = np.array(loc_normalize_std)   # default value is [0.1, 0.1, 0.2, 0.2], you can change it in config.py
 
     def __call__(self, anchor_boxes, gt_boxes, img_size):
         '''
@@ -84,7 +86,8 @@ class AnchorTargetCreator:
         # 9.result, we only care about fg object location
         anchor_target = inside_boxes[labels>0]
         argmax_boxes = gt_boxes[target_gt_max_iou_arg][labels>0]
-        loc = box2delta(anchor_target, argmax_boxes)
+        locs = box2delta(anchor_target, argmax_boxes)
+        locs = (locs - self.loc_normalize_mean) / self.loc_normalize_std  # to normalize it
 
         # 10. pack result to shape (n*),
         # fastercnn: n's typical value is w//16*h//16*9, w&h is input image size, 16 is scaler, 9 is anchor box number per feature map cell
@@ -94,7 +97,7 @@ class AnchorTargetCreator:
         new_labels = np.array([-1]*n_anchor)
         new_labels[keep_idx] = labels
         new_loc = np.zeros((n_anchor,4))
-        new_loc[keep_idx[labels>0]] = loc
+        new_loc[keep_idx[labels>0]] = locs
 
         # new_loc : n*4
         # new_labels: n*1

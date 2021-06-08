@@ -45,3 +45,9 @@ def show_one_img_with_ann_by_path(ann_path, split):
     caps_annIds = coco_caps.getAnnIds(imgIds=img['id'])
     caps_anns = coco_caps.loadAnns(caps_annIds)
     coco_caps.showAnns(caps_anns)
+
+
+if __name__ == '__main__':
+    ann_path = 'E:\\Datasets\\COCO2017\\annotations\\instances_train2017.json'
+    split = 'train2017'
+    show_one_img_with_ann_by_path(ann_path, split)
