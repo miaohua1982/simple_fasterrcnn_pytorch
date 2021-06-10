@@ -141,7 +141,7 @@ def train(opt):
                 img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()
 
             optimizer.zero_grad()
-            rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_mask_loss = maskrcnn(img, gt_boxes, gt_labels, scale.item())
+            rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_mask_loss, _, _, _, _ = maskrcnn(img, gt_boxes, gt_labels, scale.item())
             total_loss = rpn_score_loss+rpn_reg_loss+roi_score_loss+roi_reg_loss+roi_mask_loss
             total_loss.backward()
             optimizer.step()
@@ -178,7 +178,7 @@ def train(opt):
 
                 # plot predict bboxes
                 maskrcnn.eval()
-                pre_boxes, pre_labels, pre_scores = maskrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
+                pre_boxes, pre_labels, pre_scores, pre_masks = maskrcnn.predict(img, gt_boxes, gt_labels, gt_masks, scale.item(), present='visualize')
                 maskrcnn.train()
                 # we need scale back
                 # show predict img

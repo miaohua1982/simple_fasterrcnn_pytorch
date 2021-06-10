@@ -2,10 +2,11 @@ from __future__ import  absolute_import
 
 import torch as t
 import numpy as np
-from torch import nn
+from torch import full, nn
 from torch.nn import functional as F
 import nms_mh as mh             # my implementaton of nms & calc_iou
 from model.util.bbox_opt import gen_pyramid_anchors, delta2box
+from data.util import unmold_mask
 
 from config.config import mask_running_args
 from model.maskrcnn.feature_pyramid_network import FeaturePyramidNetwork
@@ -177,18 +178,20 @@ class MaskRCNN(nn.Module):
             roi_reg_loss = 0
             mask_score_loss = 0
 
-        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, mask_score_loss
+        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, mask_score_loss, roi_reg_locs, roi_scores, sample_rois, mask_scores
         
 
-    def _suppress(self, raw_cls_bbox, raw_prob):
-        bbox = list()
-        label = list()
-        score = list()
+    def _suppress(self, raw_cls_bbox, raw_prob, raw_masks):
+        bbox = []
+        label = []
+        score = []
+        masks = []
         # skip cls_id = 0 because it is the background class
         for one_cls in range(1, self.n_class):
             # extract the one_cls's boxes & scores
             cls_bbox_l = raw_cls_bbox[:, one_cls, :]
             prob_l = raw_prob[:, one_cls]
+            mask_l = raw_masks[:, one_cls]
             # get the target whose iou bigger than thresh
             mask = prob_l > self.score_thresh
             cls_bbox_l = cls_bbox_l[mask]
@@ -199,14 +202,16 @@ class MaskRCNN(nn.Module):
             bbox.append(cls_bbox_l[keep])
             label.append(t.tensor(one_cls - 1).repeat(len(keep)))  # set class label index back to 0 based, 
             score.append(prob_l[keep])
+            masks.append(mask_l[keep])
 
         bbox = t.cat(bbox, dim=0).float()
         label = t.cat(label, dim=0).int()
         score = t.cat(score, dim=0).float()
-        return bbox, label, score
+        masks = t.cat(masks, dim=0).foat()
+        return bbox, label, score, masks
     
     @nograd
-    def predict(self, img, gt_boxes, gt_labels, scale, present='evaluate'):
+    def predict(self, img, gt_boxes, gt_labels, gt_masks, scale, present='evaluate'):
         if present == 'visualize':
             self.nms_thresh = 0.3
             self.score_thresh = 0.7
@@ -219,7 +224,8 @@ class MaskRCNN(nn.Module):
         # roi_reg_locs shape [128,(classes+1)*4]
         # roi_scores shape [128, classes+1]
         # sample_rois shape [128, 4]
-        _, _, _, _, roi_reg_locs, roi_scores, sample_rois = self(img, gt_boxes, gt_labels, scale)
+        # mask_scores shape [128,(classes+1),28,28]
+        _, _, _, _, roi_reg_locs, roi_scores, sample_rois, mask_scores = self(img, gt_boxes, gt_labels, gt_masks, scale)
 
         loc_std = t.tensor(mask_running_args.loc_normalize_std).repeat(self.n_class)
         loc_mean = t.tensor(mask_running_args.loc_normalize_mean).repeat(self.n_class)
@@ -244,6 +250,14 @@ class MaskRCNN(nn.Module):
 
         pred_socres = F.softmax(roi_scores, dim=1)
         
-        bbox, label, score = self._suppress(pred_boxes, pred_socres)
-        
-        return bbox, label, score 
+        # do nms for every class
+        bbox, label, score, masks = self._suppress(pred_boxes, pred_socres, mask_scores)
+
+        # resize mask to image size
+        img_size = (h, w)
+        full_masks = []
+        for one_box, one_mask in zip(bbox, masks):
+            mask = unmold_mask(one_mask, one_box, img_size)
+            full_masks.append(mask)
+        full_masks = t.stack(full_masks, dim=0)
+        return bbox, label, score, full_masks

@@ -83,7 +83,7 @@ class Maskrcnn_Config(ConfigBase):
 
     image_size = (1024,1024)
     # set for instance json file
-    dataset_base_path = 'E:\\Datasets\\COCO2017'
+    dataset_base_path = '../datasets/coco2017'
     # base anchor box generation
     backbone_stride = [4,8,16,32,64]
     anchor_ratios = [0.5,1,2]
