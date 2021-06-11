@@ -145,7 +145,7 @@ def unmold_mask(mask, bbox, image_shape):
     """
     threshold = 0.5
     x1, y1, x2, y2 = bbox
-    mask = sktsf.resize(mask, (y2 - y1, x2 - x1), interp='bilinear').astype(np.float32) / 255.0
+    mask = sktsf.resize(mask, (y2 - y1, x2 - x1), interp='bilinear').astype(np.float32)
     mask = np.where(mask >= threshold, 1, 0).astype(np.uint8)
 
     # Put the mask in the right location.

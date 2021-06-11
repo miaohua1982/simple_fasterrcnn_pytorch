@@ -6,7 +6,7 @@ from torch import full, nn
 from torch.nn import functional as F
 import nms_mh as mh             # my implementaton of nms & calc_iou
 from model.util.bbox_opt import gen_pyramid_anchors, delta2box
-from data.util import unmold_mask
+from data.util import unmold_mask, resize_bbox
 
 from config.config import mask_running_args
 from model.maskrcnn.feature_pyramid_network import FeaturePyramidNetwork
@@ -210,29 +210,14 @@ class MaskRCNN(nn.Module):
         masks = t.cat(masks, dim=0).foat()
         return bbox, label, score, masks
     
-    @nograd
-    def predict(self, img, gt_boxes, gt_labels, gt_masks, scale, present='evaluate'):
-        if present == 'visualize':
-            self.nms_thresh = 0.3
-            self.score_thresh = 0.7
-        elif present == 'evaluate':
-            self.nms_thresh = 0.3
-            self.score_thresh = 0.05
-
-        n, c, h, w = img.shape
-        assert n==1, 'predict function only support one image at once'
-        # roi_reg_locs shape [128,(classes+1)*4]
-        # roi_scores shape [128, classes+1]
-        # sample_rois shape [128, 4]
-        # mask_scores shape [128,(classes+1),28,28]
-        _, _, _, _, roi_reg_locs, roi_scores, sample_rois, mask_scores = self(img, gt_boxes, gt_labels, gt_masks, scale)
-
+    def _format_rois(self, sample_rois, roi_reg_locs, img_size):
+        # normalized back
         loc_std = t.tensor(mask_running_args.loc_normalize_std).repeat(self.n_class)
         loc_mean = t.tensor(mask_running_args.loc_normalize_mean).repeat(self.n_class)
         if t.cuda.is_available():
             loc_std, loc_mean = loc_std.cuda(), loc_mean.cuda()
-
         roi_reg_locs = roi_reg_locs*loc_std+loc_mean
+
         # [:,:,[1,0,3,2]]  here is somthing needed to note
         # if using [:,:,[1,0,3,2]], we assume that the network generates coordinates is like [y1, x1, y2 ,x2]
         # if not, we assume the network generates coordinates is like [x1, y1, x2 ,y2]
@@ -243,21 +228,65 @@ class MaskRCNN(nn.Module):
         rois = rois.contiguous().view(-1, 4)
         # shape [sample_roi.shape[0]*n_class, 4], note n_class=fg_class+1
         pred_boxes = delta2box(rois.cpu().numpy(), roi_reg_locs.cpu().numpy())
-        pred_boxes[:, 0::2] = (pred_boxes[:, 0::2]).clip(min=0, max=w)
-        pred_boxes[:, 1::2] = (pred_boxes[:, 1::2]).clip(min=0, max=h)
+        pred_boxes[:, 0::2] = (pred_boxes[:, 0::2]).clip(min=0, max=img_size[1])
+        pred_boxes[:, 1::2] = (pred_boxes[:, 1::2]).clip(min=0, max=img_size[0])
         pred_boxes = pred_boxes.reshape(-1, self.n_class, 4)
         pred_boxes = t.from_numpy(pred_boxes).cuda() if t.cuda.is_available() else t.from_numpy(pred_boxes)
 
-        pred_socres = F.softmax(roi_scores, dim=1)
-        
-        # do nms for every class
-        bbox, label, score, masks = self._suppress(pred_boxes, pred_socres, mask_scores)
+        return pred_boxes
 
-        # resize mask to image size
-        img_size = (h, w)
+    def _format_result(self, pred_boxes, pred_scores, mask_scores, scale, img_size, present):
+        # do nms for every class
+        bbox, label, score, masks = self._suppress(pred_boxes, pred_scores, mask_scores)
+
+        # resize box & mask to original image size if in evaluate mode
+        h, w = img_size
+        if present == 'evaluate':
+            img_size = (int(h/scale), int(w/scale))
         full_masks = []
+        scaled_boxes = []
         for one_box, one_mask in zip(bbox, masks):
+            if present == 'evaluate':
+                one_box = resize_bbox(one_box.numpy(), (h,w), img_size)
+                scaled_boxes.append(t.from_numpy(one_box))
             mask = unmold_mask(one_mask, one_box, img_size)
-            full_masks.append(mask)
+            full_masks.append(t.from_numpy(mask))
         full_masks = t.stack(full_masks, dim=0)
+        if len(scaled_boxes) > 0:
+            bbox = t.stack(scaled_boxes, dim=0)
+        return bbox, label, score, full_masks
+
+    def _set_thresh(self, present):
+        if present == 'visualize':
+            self.nms_thresh = 0.3
+            self.score_thresh = 0.7
+        elif present == 'evaluate':
+            self.nms_thresh = 0.3
+            self.score_thresh = 0.05
+
+    @nograd
+    def predict(self, img, gt_boxes, gt_labels, gt_masks, scale, present='evaluate'):
+        # assert for one batch
+        n, c, h, w = img.shape
+        assert n==1, 'predict function only support one image at once'
+
+        # set thresh
+        self._set_thresh(present)
+
+        # evaluate, note: 128 is a parameter, 28*28 the mask size
+        # roi_reg_locs shape [128,(classes+1)*4]
+        # roi_scores shape [128, classes+1]
+        # sample_rois shape [128, 4]
+        # mask_scores shape [128,(classes+1),28,28]
+        _, _, _, _, roi_reg_locs, roi_scores, sample_rois, mask_scores = self(img, gt_boxes, gt_labels, gt_masks, scale)
+       
+        # get box(x1,y1,x2,y2) from delta(roi_reg_locs) and sample rois 
+        pred_boxes = self._format_rois(sample_rois, roi_reg_locs, (h,w))
+        
+        # get scores(0~1) for every class
+        pred_scores = F.softmax(roi_scores, dim=1)
+        
+        # do nms for every class, and expand mask, resize boxes to original image size(if in evaluate mode) 
+        bbox, label, score, full_masks = self._format_result(pred_boxes, pred_scores, mask_scores, scale, (h,w), present)
+
         return bbox, label, score, full_masks

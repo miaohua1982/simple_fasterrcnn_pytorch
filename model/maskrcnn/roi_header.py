@@ -129,7 +129,6 @@ class MaskHeader(nn.Module):
         super(MaskHeader, self).__init__()
         self.depth = depth
         self.pool_size = pool_size
-        self.image_shape = image_shape
         self.num_classes = num_classes
 
         self.conv1 = nn.Conv2d(self.depth, 256, kernel_size=3, stride=1, padding=1)

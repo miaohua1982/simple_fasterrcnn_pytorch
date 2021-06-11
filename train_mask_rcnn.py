@@ -12,7 +12,7 @@ from torch.utils import data as data_
 from data.coco_dataset import Coco_Dataset
 from data.util import inverse_normalize
 from config.config import mask_running_args
-from model.util.eval_ap import eval_detection_voc
+from model.util.coco_eval import CocoEvaluator
 from model.backbone.resnet import ResnetBackbone
 from model.maskrcnn.maskrcnn import MaskRCNN
 
@@ -49,41 +49,42 @@ def scale_lr(optimizer, decay=0.1):
         param_group['lr'] *= decay
     return optimizer
 
-def eval(model, opt, test_num=5000):
+def eval(model, opt, epoch_idx, test_num=5000):
     # load eval dataset
     dataset = Coco_Dataset(opt.dataset_base_path,min_size=opt.min_img_size, max_size=opt.max_img_size, split='val2017')
     test_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=True)
+    # setup coco eval class
+    iou_types = ["bbox", "segm"]
+    coco_evaluator = CocoEvaluator(dataset.coco, dataset.coco.classes_id_map, iou_types)
 
     # set to eval mode
     model.eval()
 
-    # test 
-    pred_boxes = []
-    pred_labels = []
-    pred_scores = []
-    gt_boxes = []
-    gt_labels = []
-    gt_difficults = []
+    # eval
     for idx, one_obj_ds in tqdm(enumerate(test_dataset)):
-        img, boxes, labels, difficults, scale = one_obj_ds
-        
-        if t.cuda.is_available():
-            img, boxes, labels = img.cuda(), boxes.cuda(), labels.cuda()
+        img, prop = one_obj_ds
+        boxes = prop['gt_boxes']
+        labels = prop['gt_labels']
+        masks = prop['gt_masks']
+        scale = prop['scale']
+        img_id = prop['image_id']
 
-        pboxes, plabels, pscores = model.predict(img, boxes, labels, scale.item())
+        if t.cuda.is_available():
+            img, boxes, labels, masks = img.cuda(), boxes.cuda(), labels.cuda(), masks.cuda()
+
+        pboxes, plabels, pscores, pmasks = model.predict(img, boxes, labels, masks, scale.item())
         
-        pred_boxes.append(pboxes.cpu().numpy())
-        pred_labels.append(plabels.cpu().numpy())
-        pred_scores.append(pscores.cpu().numpy())
-        gt_boxes.append(boxes[0].cpu().numpy())
-        gt_labels.append(labels[0].cpu().numpy())
-        gt_difficults.append(difficults[0].cpu().numpy())
+        coco_evaluator.prepare_for_one_coco(img_id.item(), pboxes, pscores, plabels, pmasks)
 
         if idx == test_num:
             break
     
-    # result including ap & map
-    result = eval_detection_voc(pred_boxes, pred_labels, pred_scores, gt_boxes, gt_labels, gt_difficults, iou_thresh=0.5, use_07_metric=True)
+    # save result
+    coco_evaluator.finish_eval(mask_running_args.eval_result_path.format(epoch_idx))
+    
+    # eval
+    coco_evaluator.accumulate()
+    result = coco_evaluator.summarize()
     
     # set back to train mode
     model.train()
@@ -138,10 +139,10 @@ def train(opt):
             img_id = prop['image_id']
 
             if t.cuda.is_available():
-                img, gt_boxes, gt_labels = img.cuda(), gt_boxes.cuda(), gt_labels.cuda()
+                img, gt_boxes, gt_labels, gt_masks = img.cuda(), gt_boxes.cuda(), gt_labels.cuda(), gt_masks.cuda()
 
             optimizer.zero_grad()
-            rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_mask_loss, _, _, _, _ = maskrcnn(img, gt_boxes, gt_labels, scale.item())
+            rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, roi_mask_loss, _, _, _, _ = maskrcnn(img, gt_boxes, gt_labels, gt_masks, scale.item())
             total_loss = rpn_score_loss+rpn_reg_loss+roi_score_loss+roi_reg_loss+roi_mask_loss
             total_loss.backward()
             optimizer.step()
@@ -173,7 +174,7 @@ def train(opt):
                 vis.img('gt_img', gt_img)
 
                 # plot ground truth mask
-                gt_mask_img = visdom_mask(ori_img, img_id, dataset.coco)
+                gt_mask_img = visdom_mask(ori_img, img_id[0].item(), dataset.coco)
                 vis.img('gt_mask_img', gt_mask_img)
 
                 # plot predict bboxes
@@ -188,25 +189,28 @@ def train(opt):
                                        pre_scores.cpu().numpy())
                 vis.img('pred_img', pred_img)
                 # show predict mask img
-
+                
 
         # eval
-        result = eval(maskrcnn, opt)
+        result = eval(maskrcnn, epoch, opt)
+        ap = result.get_AP()
         # py visdom plot
-        vis.plot('eval_map', result['map'])
+        vis.plot('eval_mask_ap', ap['mask AP'])
+        vis.plot('eval_box_ap', ap['bbox AP'])
+
         # log
-        log_info = 'In round %d, lr:%.6f, test map:%.6f, avg rpn regloss is %.6f, avg roi regloss is %.6f, avg rpn scoreloss is %.6f, avg roi scoreloss is %.6f' % \
-            (epoch, cur_lr, result['map'], avg_rpn_reg_loss, avg_roi_reg_loss, avg_rpn_score_loss, avg_roi_score_loss)
+        log_info = 'In round %d, lr:%.6f, avg rpn regloss is %.6f, avg roi regloss is %.6f, avg rpn scoreloss is %.6f, avg roi scoreloss is %.6f, avg maskloss is %.6f, eval result is %s' % \
+            (epoch, cur_lr, avg_rpn_reg_loss, avg_roi_reg_loss, avg_rpn_score_loss, avg_roi_score_loss, avg_roi_mask_loss, str(result))
         print(log_info)
         vis.log(log_info)
 
         # save model if needed
-        if result['map'] > cur_eval_map:
-            cur_eval_map = result['map']
+        if ap['mask AP'] > cur_eval_map:
+            cur_eval_map = ap['mask AP']
             save_path = mask_running_args.save_model_path % (time.strftime("%m%d_%H%M"), cur_eval_map)
             t.save(maskrcnn.state_dict(), save_path)
             opt.load_model_path = save_path
-        elif result['map'] < cur_eval_map:     # make sure current one is the best one
+        elif ap['mask AP'] < cur_eval_map:     # make sure current one is the best one
             maskrcnn.load_state_dict(t.load(opt.load_model_path))
 
         # decay the model's learning rate

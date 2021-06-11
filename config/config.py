@@ -100,10 +100,10 @@ class Maskrcnn_Config(ConfigBase):
     skip_small_obj=True  #wether to skip small object
     # proposal target creator
     gt_mask_size = (28, 28)
-    
     # roi header
     mask_roi_size = 14
-
+    # eval
+    eval_result_path = 'model_storage/eval_result_{}.txt'
 
 running_args = Fasterrcnn_Config()
 

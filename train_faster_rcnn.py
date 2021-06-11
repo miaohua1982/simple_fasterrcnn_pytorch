@@ -9,7 +9,7 @@ from torch.utils import data as data_
 from data.voc_dataset import Voc_Dataset
 from data.util import inverse_normalize
 from config.config import running_args
-from model.util.eval_ap import eval_detection_voc
+from model.util.voc_eval import eval_detection_voc
 from model.backbone.vgg16 import decom_vgg16
 from model.backbone.resnet import decom_resnet
 from model.fasterrcnn.fasterrcnn import FasterRCNN
