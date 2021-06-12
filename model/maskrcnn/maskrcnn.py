@@ -58,7 +58,7 @@ class MaskRCNN(nn.Module):
         self.fpn = FeaturePyramidNetwork(backbone_output_channels=backbone_channels, output_channels=256)
 
         # the rpn network
-        self.rpn = RegionProposalNetwork(input_channels=256, mid_channels=512, n_per_anchor=len(mask_running_args.anchor_ratios)*len(mask_running_args.anchor_scales))
+        self.rpn = RegionProposalNetwork(input_channels=256, mid_channels=512, n_per_anchor=len(mask_running_args.anchor_ratios))
         
         # the roi header network
         # the class including the bg
@@ -110,8 +110,8 @@ class MaskRCNN(nn.Module):
         # rpn_digits & rpn_reg_loc with shape (n,2) & (n,4), n=feat.h*feat.w*9
         # rpn_rois with shape (n,4), n is at most 2000(at train mode) or 1000(at test mode), rois is np.array
         # base anchor boxes, with shape [R, 4]
-        # R=len(scales)*len(ratios)*len(feat_stride)*int(feat_height/anchor_stride)*int(feat_width/anchor_stride)
-        self.base_anchor_boxes = gen_pyramid_anchors(mask_running_args.anchor_sacles, mask_running_args.anchor_ratios, \
+        # R=len(ratios)*len(feat_stride)*int(feat_height/anchor_stride)*int(feat_width/anchor_stride)
+        self.base_anchor_boxes = gen_pyramid_anchors(mask_running_args.anchor_scales, mask_running_args.anchor_ratios, \
                                                      img_size, mask_running_args.backbone_stride, mask_running_args.anchor_stride)
         rpn_digits, rpn_loc_deltas, rpn_rois = rpn_to_proposal(self.rpn, self.proposal_creator, fpn_feats, self.base_anchor_boxes, img_size, scale, self.training)
 
@@ -133,7 +133,7 @@ class MaskRCNN(nn.Module):
             # smooth l1 loss
             rpn_reg_loss = smooth_l1_loss(rpn_loc_deltas, loc_deltas, labels, mask_running_args.rpn_sigma)
         else:
-            rpn_score_loss = 0
+            rpn_cls_loss = 0
             rpn_reg_loss = 0
         
         # proposal target creator, all its outputs 'type are np.array
@@ -166,19 +166,21 @@ class MaskRCNN(nn.Module):
             roi_locs = roi_reg_locs.view(n, -1, 4) #[:,:,[1,0,3,2]]
             # according to gt labels, pick the gt box from (class_num+1) , the shape will be changed to n*4
             gt_sample_labels = t.from_numpy(gt_sample_labels).long().cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_labels).long()
+            gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
+            gt_pooled_masks = t.from_numpy(gt_pooled_masks).float().cuda() if t.cuda.is_available() else t.from_numpy(gt_pooled_masks).float()
+
             roi_locs = roi_locs[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
             mask_scores = mask_scores[t.arange(n).cuda() if t.cuda.is_available() else t.arange(n), gt_sample_labels].contiguous()
-            gt_sample_locs = t.from_numpy(gt_sample_locs).cuda() if t.cuda.is_available() else t.from_numpy(gt_sample_locs)
 
             roi_reg_loss = smooth_l1_loss(roi_locs, gt_sample_locs, gt_sample_labels, mask_running_args.roi_sigma)
-            roi_score_loss = F.cross_entropy(roi_scores, gt_sample_labels)
+            roi_cls_loss = F.cross_entropy(roi_scores, gt_sample_labels)
             mask_score_loss = F.binary_cross_entropy(mask_scores[:gt_pos_num], gt_pooled_masks[:gt_pos_num])
         else:
-            roi_score_loss = 0
+            roi_cls_loss = 0
             roi_reg_loss = 0
             mask_score_loss = 0
 
-        return rpn_score_loss, rpn_reg_loss, roi_score_loss, roi_reg_loss, mask_score_loss, roi_reg_locs, roi_scores, sample_rois, mask_scores
+        return rpn_cls_loss, rpn_reg_loss, roi_cls_loss, roi_reg_loss, mask_score_loss, roi_reg_locs, roi_scores, sample_rois, mask_scores
         
 
     def _suppress(self, raw_cls_bbox, raw_prob, raw_masks):
@@ -273,7 +275,7 @@ class MaskRCNN(nn.Module):
         # set thresh
         self._set_thresh(present)
 
-        # evaluate, note: 128 is a parameter, 28*28 the mask size
+        # evaluate, note: 128 is a parameter and can be changed, 28*28 the mask size
         # roi_reg_locs shape [128,(classes+1)*4]
         # roi_scores shape [128, classes+1]
         # sample_rois shape [128, 4]

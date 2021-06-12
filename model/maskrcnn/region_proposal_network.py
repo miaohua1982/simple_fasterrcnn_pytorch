@@ -44,16 +44,16 @@ def rpn_to_proposal(rpn, proposal_creator, X, anchor_boxes, img_size, scale, is_
     rpn_loc_deltas = []
     for p in X:
         digits, score, delta = rpn(p)
-        rpn_digits.append(digits.squeeze(dim=0))
-        rpn_scores.append(score.squeeze(dim=0))
-        rpn_loc_deltas.append(delta.squeeze(dim=0))
+        rpn_digits.append(digits.squeeze(dim=0))     # squeeze the batch dim
+        rpn_scores.append(score.squeeze(dim=0))      # squeeze the batch dim
+        rpn_loc_deltas.append(delta.squeeze(dim=0))  # squeeze the batch dim
     
     # rpn_digits has shape n*2, where n is the number of anchors
-    rpn_digits = t.cat(rpn_digits)
+    rpn_digits = t.cat(rpn_digits, dim=0)
     # rpn_scores has shape n*2, where n is the number of anchors
-    rpn_scores = t.cat(rpn_scores)
+    rpn_scores = t.cat(rpn_scores, dim=0)
     # rpn_loc_deltas has shape n*4, where n is the number of anchors
-    rpn_loc_deltas = t.cat(rpn_loc_deltas)
+    rpn_loc_deltas = t.cat(rpn_loc_deltas, dim=0)
     # rois has shape n*4, where n is the number of predefined number(typical value: training=2000, testing=1000)
     rpn_rois = proposal_creator(anchor_boxes, rpn_loc_deltas.detach().cpu().numpy(), rpn_scores[:,1].detach().cpu().numpy(), img_size, scale, is_training)
     

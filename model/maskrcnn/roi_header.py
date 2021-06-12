@@ -65,12 +65,11 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
             ind = ind.cuda()
         
         scale = feature_maps[i].shape[-1]/image_shape[-1]   # calc the scale from current feature map to input image
-        align_roi = RoIAlign_C(pool_size, pool_size, scale)
         # feature_maps[i]: [batch_size, channels, height, width]
         # level_boxes: [num of boxes, 4]
         # ind: [num of boxes]
         # pooled_features : [num of boxes, channels, pool_height, pool_width]
-        pooled_features = align_roi.apply(feature_maps[i], level_boxes, ind)
+        pooled_features = RoIAlign_C.apply(feature_maps[i], level_boxes, ind, pool_size, pool_size, scale)
 
         pooled.append(pooled_features)
 
@@ -133,11 +132,11 @@ class MaskHeader(nn.Module):
 
         self.conv1 = nn.Conv2d(self.depth, 256, kernel_size=3, stride=1, padding=1)
         self.bn1 = nn.BatchNorm2d(256, eps=0.001)
-        self.conv2 = nn.Conv2d(256, 256, kernel_size=3, stride=1)
+        self.conv2 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
         self.bn2 = nn.BatchNorm2d(256, eps=0.001)
-        self.conv3 = nn.Conv2d(256, 256, kernel_size=3, stride=1)
+        self.conv3 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
         self.bn3 = nn.BatchNorm2d(256, eps=0.001)
-        self.conv4 = nn.Conv2d(256, 256, kernel_size=3, stride=1)
+        self.conv4 = nn.Conv2d(256, 256, kernel_size=3, stride=1, padding=1)
         self.bn4 = nn.BatchNorm2d(256, eps=0.001)
         self.deconv = nn.ConvTranspose2d(256, 256, kernel_size=2, stride=2)
         self.conv5 = nn.Conv2d(256, num_classes, kernel_size=1, stride=1)
@@ -146,16 +145,16 @@ class MaskHeader(nn.Module):
 
     def forward(self, x, rois, image_shape):
         x = pyramid_roi_align(x, rois, self.pool_size, image_shape)
-        x = self.conv1(self.padding(x))
+        x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
-        x = self.conv2(self.padding(x))
+        x = self.conv2(x)
         x = self.bn2(x)
         x = self.relu(x)
-        x = self.conv3(self.padding(x))
+        x = self.conv3(x)
         x = self.bn3(x)
         x = self.relu(x)
-        x = self.conv4(self.padding(x))
+        x = self.conv4(x)
         x = self.bn4(x)
         x = self.relu(x)
         x = self.deconv(x)

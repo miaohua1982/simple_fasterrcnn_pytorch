@@ -28,7 +28,7 @@ class ConfigBase(object):
     num_epochs=14
     use_drop=False
     feat_stride=16
-    plot_spot=100
+    plot_spot=3
     debug_file='/tmp/debug'
     vis_env='fastercnn_mh'
     #------------------------------
@@ -77,13 +77,13 @@ class Fasterrcnn_Config(ConfigBase):
 class Maskrcnn_Config(ConfigBase):
     # backbone network
     backbone = "resnet101"
-    num_classes = 80 + 1     # coco dataset has 80 classes
+    num_classes = 80     # coco dataset has 80 classes
     min_img_size = 800
     max_img_size = 1024
 
     image_size = (1024,1024)
     # set for instance json file
-    dataset_base_path = '../datasets/coco2017'
+    dataset_base_path = 'E:\\Datasets\\COCO2017'  #'../datasets/coco2017'
     # base anchor box generation
     backbone_stride = [4,8,16,32,64]
     anchor_ratios = [0.5,1,2]

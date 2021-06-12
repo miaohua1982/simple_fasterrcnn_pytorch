@@ -1,5 +1,6 @@
 from __future__ import  absolute_import
 
+import torch as t
 import numpy as np
 from model.util.bbox_opt import delta2box, box2delta
 from model.util.iou import calc_iou
@@ -39,17 +40,17 @@ class ProposalTargetCreator:
         
         # get gt masks
         if pos_size > 0:
-            pos_masks = gt_masks[target_gt_max_iou_arg[pos_keep_idx]]     # n*img_height*img_width, n is the number of positive roi
+            pos_masks = gt_masks # [target_gt_max_iou_arg[pos_keep_idx]]     # n*img_height*img_width, n is the number of positive roi
             pos_rois = rois[pos_keep_idx]                         # n*4
             rois_inds = target_gt_max_iou_arg[pos_keep_idx]       # n*1
-            align_roi = RoIAlign_C(self.gt_mask_size[0], self.gt_mask_size[1], scale=1.0)
             # pos_masks: [num of boxes, channels, height, width], channels=1
             # pos_rois: [num of boxes, 4]
             # ind: [num of boxes], all zeros
             # pooled_features : [num of boxes, 1, pool_height, pool_width]
-            pos_pooled_masks = align_roi.apply(pos_masks[:,None], pos_rois, rois_inds)
+            pos_pooled_masks = RoIAlign_C.apply(t.from_numpy(pos_masks[:,None]), t.from_numpy(pos_rois), t.from_numpy(rois_inds), \
+                                               self.gt_mask_size[0], self.gt_mask_size[1], 1.0) # None is to add one dim=1
             # squeeze [num of boxes, 1, pool_height, pool_width] to [num of boxes, pool_height, pool_width] 
-            pos_pooled_masks = np.where(gt_pooled_masks[:,0]>=0.5, 1, 0)  
+            pos_pooled_masks = np.where(pos_pooled_masks[:,0]>=0.5, 1, 0) 
 
         # 4. choose max iou >= neg_iou_thresh_lo & max iou < neg_iou_thresh_hi, and check it if more than n_sample-n_sample*pos_ratio
         # 选择所有max_iou<neg_iou_thresh_hi=0.5且max_iou>=neg_iou_thresh_lo=0.0的样本作为负例，若负例数量超过neg_num=n_sample-pos_need_size，则在负样本中随机选择neg_num个例子
@@ -60,7 +61,7 @@ class ProposalTargetCreator:
             target_gt_labels[neg_keep_idx] = 0   # it is back ground
         
         # zeros for neg masks
-        neg_pooled_masks = np.zeros((neg_need_size, self.gt_mask_size[0], self.gt_mask_size[1])) 
+        neg_pooled_masks = np.zeros((neg_need_size, self.gt_mask_size[0], self.gt_mask_size[1]), dtype=np.float32)
         
         # all selected index for further computing loss
         keep_idx = np.concatenate([pos_keep_idx, neg_keep_idx])
@@ -77,7 +78,7 @@ class ProposalTargetCreator:
         gt_sample_locs = (gt_sample_locs - self.loc_normalize_mean) / self.loc_normalize_std # normalize
 
         # mask for computing binary cross entropy loss
-        gt_pooled_masks = np.concatenate([pos_pooled_masks, pos_pooled_masks], axis=0)
+        gt_pooled_masks = np.concatenate([pos_pooled_masks, neg_pooled_masks], axis=0)
 
         # return result
         return sample_rois, gt_sample_locs, gt_sample_labels, gt_pooled_masks, pos_keep_idx.shape[0]

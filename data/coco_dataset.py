@@ -88,7 +88,7 @@ class Coco_Dataset(object):
             # and api generates float versions, there are maybe a little differences in value
             # boxes = self.getbox_from_mask(masks.numpy())
 
-        prop = dict(image_id=np.array([img_id]), iscrowd=is_crowd, gt_boxes=boxes, gt_labels=labels, gt_masks=masks)
+        prop = dict(image_id=img_id, iscrowd=is_crowd, gt_boxes=boxes, gt_labels=labels, gt_masks=masks)
 
         return prop
     

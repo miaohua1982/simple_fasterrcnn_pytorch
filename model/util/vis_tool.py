@@ -37,7 +37,7 @@ VOC_BBOX_LABEL_NAMES = [
 ]
 
 
-def vis_coco_img(img, img_id, coco):
+def vis_coco_img_gt(img, img_id, coco):
     fig = plot.figure()
     ax = fig.add_subplot(1, 1, 1)
     
@@ -48,6 +48,23 @@ def vis_coco_img(img, img_id, coco):
     annIds = coco.getAnnIds(imgIds=img_id)     
     anns = coco.loadAnns(annIds)                                  
     coco.showAnns(anns)
+
+    return ax
+
+def vis_coco_img_pred(img, img_id, coco, pred_masks, pred_labels):
+    fig = plot.figure()
+    ax = fig.add_subplot(1, 1, 1)
+    
+    # draw img
+    ax.imshow(img)
+    
+    # show pred_anns
+    my_anns = []
+    for idx, (one_pred_mask, one_pred_label) in enumerate(zip(pred_masks, pred_labels)):
+        one_ann = maskToanno(one_pred_mask, img_id, idx, one_pred_label)
+        my_anns.append(one_ann)
+
+    coco.showAnns(my_anns)
 
     return ax
 
@@ -175,8 +192,13 @@ def fig4vis(fig):
     # HWC->CHW
     return img_data[:, :, :3].transpose((2, 0, 1)) / 255.
 
-def visdom_mask(img, img_id, coco):
-    ax = vis_coco_img(img, img_id, coco)
+def visdom_mask_pred(img, img_id, coco, pred_masks, pred_labels):
+    ax = vis_coco_img_pred(img, img_id, coco, pred_masks, pred_labels)
+    data = fig4vis(ax)
+    return data
+
+def visdom_mask_gt(img, img_id, coco):
+    ax = vis_coco_img_gt(img, img_id, coco)
     data = fig4vis(ax)
     return data
 
