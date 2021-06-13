@@ -4,69 +4,12 @@ import numpy as np
 import matplotlib
 import torch as t
 import visdom
-import skimage.io
+from data.coco_helper import maskToanno
 
 matplotlib.use('Agg') # used before import pyplot, make pic do not show on screen
 from matplotlib import pyplot as plot
 
-# from data.voc_dataset import VOC_BBOX_LABEL_NAMES
-
-# I copy the code from other project
-
-VOC_BBOX_LABEL_NAMES = [
-    'fly',
-    'bike',
-    'bird',
-    'boat',
-    'pin',
-    'bus',
-    'car',
-    'cat',
-    'chair',
-    'cow',
-    'table',
-    'dog',
-    'horse',
-    'moto',
-    'person',
-    'plant',
-    'shep',
-    'sofa',
-    'train',
-    'tv',
-]
-
-
-def vis_coco_img_gt(img, img_id, coco):
-    fig = plot.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    
-    # draw img
-    ax.imshow(img)
-    
-    # show anns
-    annIds = coco.getAnnIds(imgIds=img_id)     
-    anns = coco.loadAnns(annIds)                                  
-    coco.showAnns(anns)
-
-    return ax
-
-def vis_coco_img_pred(img, img_id, coco, pred_masks, pred_labels):
-    fig = plot.figure()
-    ax = fig.add_subplot(1, 1, 1)
-    
-    # draw img
-    ax.imshow(img)
-    
-    # show pred_anns
-    my_anns = []
-    for idx, (one_pred_mask, one_pred_label) in enumerate(zip(pred_masks, pred_labels)):
-        one_ann = maskToanno(one_pred_mask, img_id, idx, one_pred_label)
-        my_anns.append(one_ann)
-
-    coco.showAnns(my_anns)
-
-    return ax
+# I copy the most of the code in this file from other project
 
 def vis_image(img, ax=None):
     """Visualize a color image.
@@ -92,8 +35,25 @@ def vis_image(img, ax=None):
     ax.imshow(img.astype(np.uint8))
     return ax
 
+def vis_coco_mask_img(img, img_id, coco, masks, labels, iscrowd):
+    # Returns newly instantiated matplotlib.axes.Axes object if ax is None
+    ax = vis_image(img)
+    
+    # check wether it is no masks
+    if len(masks) == 0:
+        return ax
 
-def vis_bbox(img, bbox, label=None, score=None, ax=None):
+    # show pred_anns
+    my_anns = []
+    for idx, (one_mask, one_label, crowd) in enumerate(zip(masks, labels, iscrowd)):
+        one_ann = maskToanno(one_mask, img_id, idx, one_label, crowd)
+        my_anns.append(one_ann)
+
+    coco.showAnns(my_anns)
+
+    return ax
+
+def vis_bbox(img, ds_labels, bbox, label=None, score=None, ax=None):
     """Visualize bounding boxes inside image.
 
     Args:
@@ -121,7 +81,7 @@ def vis_bbox(img, bbox, label=None, score=None, ax=None):
 
     """
 
-    label_names =  VOC_BBOX_LABEL_NAMES + ['bg']
+    label_names =  ds_labels + ['bg']
     # add for index `-1`
     if label is not None and not len(bbox) == len(label):
         raise ValueError('The length of label must be same as that of bbox')
@@ -146,7 +106,7 @@ def vis_bbox(img, bbox, label=None, score=None, ax=None):
         if label is not None and label_names is not None:
             lb = label[i]
             assert lb != -1, 'Something must be wrong, background index should not be here'
-            if not (-1 <= lb < len(label_names)):  # modfy here to add backgroud, -1 is the lastone, 
+            if not (-1 <= lb < len(label_names)):  # modify here to add background, -1 is the lastone, 
                 raise ValueError('No corresponding name is given')
             caption.append(label_names[lb])
         if score is not None:
@@ -192,14 +152,9 @@ def fig4vis(fig):
     # HWC->CHW
     return img_data[:, :, :3].transpose((2, 0, 1)) / 255.
 
-def visdom_mask_pred(img, img_id, coco, pred_masks, pred_labels):
-    ax = vis_coco_img_pred(img, img_id, coco, pred_masks, pred_labels)
-    data = fig4vis(ax)
-    return data
-
-def visdom_mask_gt(img, img_id, coco):
-    ax = vis_coco_img_gt(img, img_id, coco)
-    data = fig4vis(ax)
+def visdom_mask(*args, **kwargs):
+    fig = vis_coco_mask_img(*args, **kwargs)
+    data = fig4vis(fig)
     return data
 
 def visdom_bbox(*args, **kwargs):

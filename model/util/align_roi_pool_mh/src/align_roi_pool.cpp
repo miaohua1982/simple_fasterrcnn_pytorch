@@ -9,10 +9,15 @@ int add(int i, int j) {
 	return i + j;
 }
 
-inline float max(float a, float b){
+template<class T>
+inline T max(const T & a, const T & b){
     return a<b? b:a;
 }
 
+template<class T>
+inline T min(const T & a, const T & b){
+    return a<b? a:b;
+}
 
 void CropAndResizePerBox(
     const float * image_data, 
@@ -55,8 +60,8 @@ void CropAndResizePerBox(
         float height_scale = (crop_height > 1) ? max(y2 - y1, 1.0f) / crop_height : 0;
         float width_scale = (crop_width > 1) ? max(x2 - x1, 1.0f)  / crop_width : 0;
 
-        int sample_ratio_height = (sampling_ratio == -1) ? std::ceil(height_scale) : sampling_ratio;
-        int sample_ratio_width = (sampling_ratio == -1) ? std::ceil(width_scale) : sampling_ratio;
+        int sample_ratio_height = (sampling_ratio == -1) ? std::ceilf(height_scale) : sampling_ratio;
+        int sample_ratio_width = (sampling_ratio == -1) ? std::ceilf(width_scale) : sampling_ratio;
 
         for(int d = 0; d < depth; ++d) {
             const float *pimage = image_data + batch_ind * image_elements + d * image_channel_elements;
@@ -85,16 +90,16 @@ void CropAndResizePerBox(
                 
                     float p_val = 0.0f;
                     for(int i = 0; i < sample_ratio_height; ++i) {
-                        float py = in_y + height_scale*(1.0f+i*2.0f)/2.0f/sample_ratio_height;
-                        int top_y = std::floor(py);
-                        int down_y = std::ceil(py);
+                        float py = in_y + height_scale*(0.5f+i)/sample_ratio_height;
+                        int top_y = max(int(std::floorf(py)), 0);
+                        int down_y = min(int(std::ceilf(py)), image_height-1);
                         float y_lerp = py-top_y;
 
                         for(int j = 0; j < sample_ratio_width; ++j) {
-                            float px = in_x + width_scale*(1.0f+j*2.0f)/2.0f/sample_ratio_width;
+                            float px = in_x + width_scale*(0.5f+j)/sample_ratio_width;
 
-                            int left_x = std::floor(px);
-                            int right_x = std::ceil(px);
+                            int left_x = max(int(std::floorf(px)), 0);
+                            int right_x = min(int(std::ceilf(px)), image_width-1);
                             float x_lerp = px-left_x;
 
                             const float top_left = pimage[top_y * image_width + left_x];
@@ -130,14 +135,6 @@ void align_roi_pool_forward(
     const int sampling_ratio,
     py::array_t<float> & crops        //THFloatTensor * crops
 ) {
-    /*
-    const int batch_size = image->size[0];
-    const int depth = image->size[1];
-    const int image_height = image->size[2];
-    const int image_width = image->size[3];
-
-    const int num_boxes = boxes->size[0];
-    */
   	py::buffer_info image_buf = image.request();
 	py::buffer_info boxes_buf = boxes.request();
     py::buffer_info box_inds_buf = box_inds.request();
@@ -230,8 +227,8 @@ void align_roi_pool_backward(
         const float height_scale = (crop_height > 1) ? max(y2 - y1, 1.0f) / crop_height : 0;
         const float width_scale = (crop_width > 1) ? max(x2 - x1, 1.0f) / crop_width : 0;
 
-        int sample_ratio_height = (sampling_ratio == -1) ? std::ceil(height_scale) : sampling_ratio;
-        int sample_ratio_width = (sampling_ratio == -1) ? std::ceil(width_scale) : sampling_ratio;
+        int sample_ratio_height = (sampling_ratio == -1) ? std::ceilf(height_scale) : sampling_ratio;
+        int sample_ratio_width = (sampling_ratio == -1) ? std::ceilf(width_scale) : sampling_ratio;
 
         for(int d = 0; d < depth; ++d) {
             float *pimage = grads_image_data + batch_ind * image_elements + d * image_channel_elements;
@@ -256,15 +253,15 @@ void align_roi_pool_backward(
                     grad_val /= (sample_ratio_height*sample_ratio_width);
 
                     for(int i = 0; i < sample_ratio_height; ++i) {
-                        float py = in_y + height_scale*(1.0f+2.0f*i)/2.0f/sample_ratio_height;
-                        int top_y = std::floor(py);
-                        int down_y = std::ceil(py);
+                        float py = in_y + height_scale*(0.5f+i)/sample_ratio_height;
+                        int top_y = max(int(std::floorf(py)), 0);
+                        int down_y = min(int(std::ceilf(py)), image_height-1);
                         float y_lerp = py-top_y;
 
                         for(int j = 0; j < sample_ratio_width; ++j) {
-                            float px = in_x + width_scale*(1.0f+2.0f*j)/2.0f/sample_ratio_width;
-                            int left_x = std::floor(px);
-                            int right_x = std::ceil(px);
+                            float px = in_x + width_scale*(0.5f+j)/sample_ratio_width;
+                            int left_x = max(int(std::floorf(px)), 0);
+                            int right_x = min(int(std::ceilf(px)), image_width-1);
                             float x_lerp = px-left_x;
 
                             const float top_val = (1-y_lerp)*grad_val;

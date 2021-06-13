@@ -45,7 +45,7 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
         ix  = roi_level==level
         if not ix.any():
             continue
-        ix = torch.nonzero(ix)[:,0]
+        ix = torch.nonzero(ix, as_tuple=False)[:,0]  # [:,0] change shape [n,1] to [n]
         level_boxes = boxes[ix.data, :]
 
         # Keep track of which box is mapped to which level

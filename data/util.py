@@ -259,7 +259,7 @@ def random_flip(img, y_random=False, x_random=False,
         img = img[:, ::-1, :]
     if x_flip:
         img = img[:, :, ::-1]
-
+    # img.copy to get grid of numpy negative index(which tensor does not support), causing by random flip
     if copy:
         img = img.copy()
 

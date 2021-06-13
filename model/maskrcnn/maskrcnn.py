@@ -209,13 +209,13 @@ class MaskRCNN(nn.Module):
         bbox = t.cat(bbox, dim=0).float()
         label = t.cat(label, dim=0).int()
         score = t.cat(score, dim=0).float()
-        masks = t.cat(masks, dim=0).foat()
+        masks = t.cat(masks, dim=0).float()
         return bbox, label, score, masks
     
     def _format_rois(self, sample_rois, roi_reg_locs, img_size):
         # normalized back
-        loc_std = t.tensor(mask_running_args.loc_normalize_std).repeat(self.n_class)
-        loc_mean = t.tensor(mask_running_args.loc_normalize_mean).repeat(self.n_class)
+        loc_std = t.tensor(mask_running_args.loc_normalize_std)
+        loc_mean = t.tensor(mask_running_args.loc_normalize_mean)
         if t.cuda.is_available():
             loc_std, loc_mean = loc_std.cuda(), loc_mean.cuda()
         roi_reg_locs = roi_reg_locs*loc_std+loc_mean
@@ -253,7 +253,10 @@ class MaskRCNN(nn.Module):
                 scaled_boxes.append(t.from_numpy(one_box))
             mask = unmold_mask(one_mask, one_box, img_size)
             full_masks.append(t.from_numpy(mask))
-        full_masks = t.stack(full_masks, dim=0)
+        if len(full_masks) > 0:
+            full_masks = t.stack(full_masks, dim=0)
+        else:
+            full_masks = t.tensor(full_masks)
         if len(scaled_boxes) > 0:
             bbox = t.stack(scaled_boxes, dim=0)
         return bbox, label, score, full_masks
@@ -280,7 +283,7 @@ class MaskRCNN(nn.Module):
         # roi_scores shape [128, classes+1]
         # sample_rois shape [128, 4]
         # mask_scores shape [128,(classes+1),28,28]
-        _, _, _, _, roi_reg_locs, roi_scores, sample_rois, mask_scores = self(img, gt_boxes, gt_labels, gt_masks, scale)
+        _, _, _, _, _, roi_reg_locs, roi_scores, sample_rois, mask_scores = self(img, gt_boxes, gt_labels, gt_masks, scale)
        
         # get box(x1,y1,x2,y2) from delta(roi_reg_locs) and sample rois 
         pred_boxes = self._format_rois(sample_rois, roi_reg_locs, (h,w))

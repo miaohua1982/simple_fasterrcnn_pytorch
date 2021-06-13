@@ -28,7 +28,7 @@ class ConfigBase(object):
     num_epochs=14
     use_drop=False
     feat_stride=16
-    plot_spot=3
+    plot_spot=1
     debug_file='/tmp/debug'
     vis_env='fastercnn_mh'
     #------------------------------
@@ -83,7 +83,7 @@ class Maskrcnn_Config(ConfigBase):
 
     image_size = (1024,1024)
     # set for instance json file
-    dataset_base_path = 'E:\\Datasets\\COCO2017'  #'../datasets/coco2017'
+    dataset_base_path = '../datasets/coco2017'  #'E:\\Datasets\\COCO2017'  #
     # base anchor box generation
     backbone_stride = [4,8,16,32,64]
     anchor_ratios = [0.5,1,2]
@@ -97,7 +97,7 @@ class Maskrcnn_Config(ConfigBase):
     post_train_num=2000
     pre_test_num=6000
     post_test_num=1000
-    skip_small_obj=True  #wether to skip small object
+    skip_small_obj=False  #wether to skip small object
     # proposal target creator
     gt_mask_size = (28, 28)
     # roi header

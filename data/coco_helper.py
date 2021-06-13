@@ -48,8 +48,41 @@ def show_one_img_with_ann_by_path(ann_path, split):
     caps_anns = coco_caps.loadAnns(caps_annIds)
     coco_caps.showAnns(caps_anns)
 
+def show_one_img_with_ann_by_id(ann_path, split, img_id, pk=False, cap=False):
+    coco = COCO(ann_path)
+    img = coco.loadImgs(img_id)[0]
+    print('The img prop is')
+    print(img)
+    # img path
+    img_path = os.path.join(os.path.dirname(ann_path), '../{}/{}'.format(split, img['file_name']))
+    plt.subplot(121)
+    plt.title('Original_Img')
+    show_one_img_by_path(img_path)
 
-def maskToanno(ground_truth_binary_mask, img_id, ann_id, category_id):
+    # show img by anns
+    plt.subplot(122)
+    plt.title('Ann_Img')
+    show_one_img_by_path(img_path)
+    # show anns
+    annIds = coco.getAnnIds(img_id)     
+    anns = coco.loadAnns(annIds)                                           
+    coco.showAnns(anns)
+    # coco for person key points
+    if pk:
+        pkp_ann_path = os.path.join(os.path.dirname(ann_path), 'person_keypoints_{}.json'.format(split))
+        coco_kps = COCO(pkp_ann_path)
+        kps_annIds = coco_kps.getAnnIds(img_id)     
+        kps_anns = coco_kps.loadAnns(kps_annIds)                                           
+        coco_kps.showAnns(kps_anns)
+    # coco for caption
+    if cap:
+        cap_ann_path = os.path.join(os.path.dirname(ann_path), 'captions_{}.json'.format(split))
+        coco_caps = COCO(cap_ann_path)
+        caps_annIds = coco_caps.getAnnIds(img_id)
+        caps_anns = coco_caps.loadAnns(caps_annIds)
+        coco_caps.showAnns(caps_anns)
+
+def maskToanno(ground_truth_binary_mask, img_id, ann_id, category_id, iscrowd=0):
     fortran_ground_truth_binary_mask = np.asfortranarray(ground_truth_binary_mask)
     encoded_ground_truth = maskUtils.encode(fortran_ground_truth_binary_mask)
     ground_truth_area = maskUtils.area(encoded_ground_truth)
@@ -59,7 +92,7 @@ def maskToanno(ground_truth_binary_mask, img_id, ann_id, category_id):
     annotation = {
         "segmentation": [],
         "area": ground_truth_area.tolist(),
-        "iscrowd": 0,
+        "iscrowd": iscrowd,
         "image_id": img_id,
         "bbox": ground_truth_bounding_box.tolist(),
         "category_id": category_id,

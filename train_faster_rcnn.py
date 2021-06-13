@@ -168,23 +168,22 @@ def train(opt):
                 vis.plot('roi_cls_loss', avg_roi_score_loss)
                 vis.plot('total_loss', avg_total_loss)
 
-                # plot groud truth bboxes
+                # plot ground truth boxes
                 ori_img = inverse_normalize(img[0].cpu().numpy())
-                gt_img = visdom_bbox(ori_img,
+                gt_img = visdom_bbox(ori_img, dataset.get_ds_labels(),
                                      gt_boxes[0].cpu().numpy(),
                                      gt_labels[0].cpu().numpy())
                 vis.img('gt_img', gt_img)
 
-                # plot predicti bboxes
+                # plot predict boxes
                 fasterrcnn.eval()
-                pboxes, plabels, pscores = fasterrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
+                pred_boxes, pred_labels, pred_scores = fasterrcnn.predict(img, gt_boxes, gt_labels, scale.item(), present='visualize')
                 fasterrcnn.train()
-                # we need scale back
-                #pboxes = pboxes/scale
-                pred_img = visdom_bbox(ori_img,
-                                       pboxes.cpu().numpy(),
-                                       plabels.cpu().numpy(),
-                                       pscores.cpu().numpy())
+
+                pred_img = visdom_bbox(ori_img, dataset.get_ds_labels(),
+                                       pred_boxes.cpu().numpy(),
+                                       pred_labels.cpu().numpy(),
+                                       pred_scores.cpu().numpy())
                 vis.img('pred_img', pred_img)
 
         # eval

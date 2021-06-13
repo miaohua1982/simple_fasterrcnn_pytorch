@@ -98,9 +98,11 @@ class ResnetBackbone(nn.Module):
         raw_p5 = self._stage5(raw_p4)
 
         p5 = self.p5_conv(raw_p5)
-        p4 = F.upsample(p5, scale_factor=2, mode='bilinear')+self.p4_conv(raw_p4)
-        p3 = F.upsample(p4, scale_factor=2, mode='bilinear')+self.p3_conv(raw_p3)
-        p2 = F.upsample(p3, scale_factor=2, mode='bilinear')+self.p2_conv(raw_p2)
+        # note: we do not use scale=2 to upsample, because sometimes the w&h can not be divided
+        # or you can use scale=2 here, but pad the input image that make it enable being divided
+        p4 = F.interpolate(p5, size=(raw_p4.shape[2],raw_p4.shape[3]), mode='bilinear', align_corners=False)+self.p4_conv(raw_p4)
+        p3 = F.interpolate(p4, size=(raw_p3.shape[2],raw_p3.shape[3]), mode='bilinear', align_corners=False)+self.p3_conv(raw_p3)
+        p2 = F.interpolate(p3, size=(raw_p2.shape[2],raw_p2.shape[3]), mode='bilinear', align_corners=False)+self.p2_conv(raw_p2)
 
         return p2, p3, p4, p5
 

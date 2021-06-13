@@ -21,7 +21,7 @@ class ProposalTargetCreator:
         self.gt_mask_size = mask_size
     
     def __call__(self, rois, gt_boxes, gt_labels, gt_masks):
-        # 1. dataset for choosing *n_sample* samples, note **gt_boxes** can also be choosen, 将roi与gt box合并作为备选对象，统一记录为roi。（这里注意，128的可选范围不仅仅是roi）
+        # 1. dataset for choosing *n_sample* samples, note **gt_boxes** can also be chosen, 将roi与gt box合并作为备选对象，统一记录为roi。（这里注意，128的可选范围不仅仅是roi）
         rois = np.concatenate([rois, gt_boxes], axis=0)
         
         # 2. calc iou between roi & gt_boxes, note here rois including gt, 计算roi与每个ground truth box之间的IOU，形成n*m的矩阵（n为roi数量，m为ground truth box数量）

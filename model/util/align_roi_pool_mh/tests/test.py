@@ -60,7 +60,7 @@ feat1_1 = roi_pool_lib1(feat_x, indices_and_rois)
 roi_align_pooling = RoIAlign_C(roi_size, roi_size, scale)
 feat3 = roi_align_pooling.apply(feat_x, rois, roi_indices)
 
-# can not compare directly
+# can not compare float data directly
 feat1_np = np.round(feat1.detach().numpy(), 4)
 feat3_np = np.round(feat3.detach().numpy(), 4)
 print(np.all(feat1_np == feat3_np))

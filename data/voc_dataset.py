@@ -42,6 +42,9 @@ class Voc_Dataset:
         self.max_size = max_size
         self.use_difficult = use_difficult
 
+    def get_ds_labels(self):
+        return VOC_BBOX_LABEL_NAMES
+
     def __len__(self):
         return len(self.ids)
 
@@ -116,5 +119,4 @@ class Voc_Dataset:
         img, flip_param = random_flip(img, x_random=True, return_param=True)
         gt_boxes = flip_bbox(gt_boxes, (img.shape[1], img.shape[2]), x_flip=flip_param['x_flip'])
         
-        # img.copy to get grid of numpy negtive index(which tensor does not support), causing by random flip
-        return img.copy(), gt_boxes, gt_labels, gt_difficults, scale
+        return img, gt_boxes, gt_labels, gt_difficults, scale

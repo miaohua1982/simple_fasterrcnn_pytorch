@@ -15,10 +15,15 @@ class Coco_Dataset(object):
         self.img_max_size = max_size
         self.coco = COCO(ann_file_path)
         self.img_ids = [id for id in self.coco.imgs]
-        self.classes_map = {k:v['name'] for k, v in self.coco.cats.items()} 
-        self.classes_id_map = {i:k for i, k in enumerate(sorted(self.classes_map))}
-        self.classes_to_idx = { self.classes_map[k]:i for i, k in enumerate(sorted(self.classes_map))}
+        self.classes_map = {k:v['name'] for k, v in self.coco.cats.items()}
+        #self.classes_id_map = {i:k for i, k in enumerate(sorted(self.classes_map))}
+        #self.classes_to_idx = {self.classes_map[k]:i for i, k in enumerate(sorted(self.classes_map))}
+        self.classes_labels = [self.classes_map[k] for k in sorted(self.classes_map)]
+
         self.num_classes = len(self.classes_map)
+
+    def get_ds_labels(self):
+        return self.classes_labels
 
     def __len__(self):
         return len(self.img_ids)
@@ -27,7 +32,7 @@ class Coco_Dataset(object):
         return self.num_classes
     
     def get_class_name(self, label):
-        return self.classes_map[self.classes_id_map[label]]
+        return self.classes_labels[label]
 
     def __getitem__(self, idx):
         # image id
@@ -74,7 +79,7 @@ class Coco_Dataset(object):
                 boxes.append(ann['bbox'])
                 is_crowd.append(ann['iscrowd'])
                 name = self.classes_map[ann["category_id"]]
-                labels.append(self.classes_to_idx[name]) # label is from 0~79
+                labels.append(self.classes_labels.index(name)) # label is from 0~79
                 mask = self.coco.annToMask(ann)
                 mask = np.array(mask, dtype=np.uint8)
                 masks.append(mask)

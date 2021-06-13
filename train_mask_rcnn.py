@@ -16,7 +16,7 @@ from model.util.coco_eval import CocoEvaluator
 from model.backbone.resnet import ResnetBackbone
 from model.maskrcnn.maskrcnn import MaskRCNN
 
-from model.util.vis_tool import Visualizer, visdom_bbox, visdom_mask_gt, visdom_mask_pred
+from model.util.vis_tool import Visualizer, visdom_bbox, visdom_mask
 from tqdm import tqdm
 
 def set_seed_everywhere(seed, cuda):
@@ -72,9 +72,9 @@ def eval(model, opt, epoch_idx, test_num=5000):
         if t.cuda.is_available():
             img, boxes, labels, masks = img.cuda(), boxes.cuda(), labels.cuda(), masks.cuda()
 
-        pboxes, plabels, pscores, pmasks = model.predict(img, boxes, labels, masks, scale.item())
+        pred_boxes, pred_labels, pred_scores, pred_masks = model.predict(img, boxes, labels, masks, scale.item())
         
-        coco_evaluator.prepare_for_one_coco(img_id.item(), pboxes, pscores, plabels, pmasks)
+        coco_evaluator.prepare_for_one_coco(img_id.item(), pred_boxes, pred_scores, pred_labels, pred_masks)
 
         if idx == test_num:
             break
@@ -136,6 +136,7 @@ def train(opt):
             gt_masks = prop['gt_masks']
             scale = prop['scale']
             img_id = prop['image_id']
+            is_crowd = prop['iscrowd']
 
             if t.cuda.is_available():
                 img, gt_boxes, gt_labels, gt_masks = img.cuda(), gt_boxes.cuda(), gt_labels.cuda(), gt_masks.cuda()
@@ -167,11 +168,11 @@ def train(opt):
 
                 # plot ground truth boxes
                 ori_img = inverse_normalize(img[0].cpu().numpy())
-                gt_img = visdom_bbox(ori_img, gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
+                gt_img = visdom_bbox(ori_img, dataset.get_ds_labels(), gt_boxes[0].cpu().numpy(), gt_labels[0].cpu().numpy())
                 vis.img('gt_img', gt_img)
 
                 # plot ground truth mask
-                gt_mask_img = visdom_mask_gt(ori_img, img_id.item(), dataset.coco)
+                gt_mask_img = visdom_mask(ori_img, img_id.item(), dataset.coco, gt_masks[0].cpu().numpy(), gt_labels[0].cpu().numpy(), is_crowd[0].cpu().numpy())
                 vis.img('gt_mask_img', gt_mask_img)
 
                 # plot predict boxes
@@ -179,10 +180,10 @@ def train(opt):
                 pred_boxes, pred_labels, pred_scores, pred_masks = maskrcnn.predict(img, gt_boxes, gt_labels, gt_masks, scale.item(), present='visualize')
                 maskrcnn.train()
                 # show predict img
-                pred_img = visdom_bbox(ori_img, pred_boxes.cpu().numpy(), pred_labels.cpu().numpy(), pred_scores.cpu().numpy())
+                pred_img = visdom_bbox(ori_img, dataset.get_ds_labels(), pred_boxes.cpu().numpy(), pred_labels.cpu().numpy(), pred_scores.cpu().numpy())
                 vis.img('pred_img', pred_img)
                 # show predict mask img
-                pred_mask_img = visdom_mask_pred(ori_img, img_id.item(), dataset.coco, pred_masks.cpu().numpy(), pred_labels.cpu().numpy())
+                pred_mask_img = visdom_mask(ori_img, img_id.item(), dataset.coco, pred_masks.cpu().numpy(), pred_labels.cpu().numpy(), is_crowd[0].cpu().numpy())
                 vis.img('pred_mask_img', pred_mask_img)
 
         # eval
@@ -194,7 +195,7 @@ def train(opt):
 
         # log
         log_info = 'In round %d, lr:%.6f, avg rpn regloss is %.6f, avg roi regloss is %.6f, avg rpn scoreloss is %.6f, avg roi scoreloss is %.6f, avg maskloss is %.6f, eval result is %s' % \
-            (epoch, cur_lr, avg_rpn_reg_loss, avg_roi_reg_loss, avg_rpn_score_loss, avg_roi_score_loss, avg_roi_mask_loss, str(result))
+            (epoch, cur_lr, avg_rpn_reg_loss, avg_roi_reg_loss, avg_rpn_cls_loss, avg_roi_cls_loss, avg_roi_mask_loss, str(result))
         print(log_info)
         vis.log(log_info)
 
