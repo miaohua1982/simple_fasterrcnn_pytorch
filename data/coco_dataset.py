@@ -16,7 +16,7 @@ class Coco_Dataset(object):
         self.coco = COCO(ann_file_path)
         self.img_ids = [id for id in self.coco.imgs]
         self.classes_map = {k:v['name'] for k, v in self.coco.cats.items()}
-        #self.classes_id_map = {i:k for i, k in enumerate(sorted(self.classes_map))}
+        self.classes_id_map = {i:k for i, k in enumerate(sorted(self.classes_map))}
         #self.classes_to_idx = {self.classes_map[k]:i for i, k in enumerate(sorted(self.classes_map))}
         self.classes_labels = [self.classes_map[k] for k in sorted(self.classes_map)]
 

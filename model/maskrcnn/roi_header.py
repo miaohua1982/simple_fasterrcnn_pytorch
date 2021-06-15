@@ -3,6 +3,7 @@ import torch
 from torch.nn import functional as F
 from model.util.align_roi_pool import RoIAlign_C
 
+from torchvision.ops import RoIAlign
 
 def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
     """Implements ROI Pooling on multiple levels of the feature pyramid.
@@ -69,8 +70,10 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
         # level_boxes: [num of boxes, 4]
         # ind: [num of boxes]
         # pooled_features : [num of boxes, channels, pool_height, pool_width]
-        pooled_features = RoIAlign_C.apply(feature_maps[i], level_boxes, ind, pool_size, pool_size, scale)
-
+        align_roi = RoIAlign((pool_size,pool_size), spatial_scale=scale, sampling_ratio=-1)
+        indices_and_rois = torch.cat([ind[:, None], level_boxes], dim=1)
+        pooled_features = align_roi(feature_maps[i], indices_and_rois)
+        #pooled_features = RoIAlign_C.apply(feature_maps[i], level_boxes, ind, pool_size, pool_size, scale)
         pooled.append(pooled_features)
 
     # Pack pooled features into one tensor

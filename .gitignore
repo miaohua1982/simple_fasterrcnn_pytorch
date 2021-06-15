@@ -4,6 +4,7 @@ __pycache__/
 VOCdevkit/
 *.pth
 *.tar
+*.txt
 Debug/
 Release/
 *.db

@@ -107,7 +107,7 @@ class MaskRCNN(nn.Module):
         fpn_feats = self.fpn(feats)
         mask_header_feats = fpn_feats[:-1]
         # rpn, 
-        # rpn_digits & rpn_reg_loc with shape (n,2) & (n,4), n=feat.h*feat.w*9
+        # rpn_digits & rpn_reg_loc with shape (n,2) & (n,4), n=feat.h*feat.w*num o
         # rpn_rois with shape (n,4), n is at most 2000(at train mode) or 1000(at test mode), rois is np.array
         # base anchor boxes, with shape [R, 4]
         # R=len(ratios)*len(feat_stride)*int(feat_height/anchor_stride)*int(feat_width/anchor_stride)

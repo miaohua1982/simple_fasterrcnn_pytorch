@@ -49,13 +49,13 @@ def scale_lr(optimizer, decay=0.1):
         param_group['lr'] *= decay
     return optimizer
 
-def eval(model, opt, epoch_idx, test_num=5000):
+def eval(model, epoch_idx, opt, test_num=1):
     # load eval dataset
     dataset = Coco_Dataset(opt.dataset_base_path,min_size=opt.min_img_size, max_size=opt.max_img_size, split='val2017')
     test_dataset = data_.DataLoader(dataset, batch_size=1, shuffle=True)
     # setup coco eval class
     iou_types = ["bbox", "segm"]
-    coco_evaluator = CocoEvaluator(dataset.coco, dataset.coco.classes_id_map, iou_types)
+    coco_evaluator = CocoEvaluator(dataset.coco, dataset.classes_id_map, iou_types)
 
     # set to eval mode
     model.eval()
