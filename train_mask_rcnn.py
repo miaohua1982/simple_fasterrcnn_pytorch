@@ -138,6 +138,10 @@ def train(opt):
             img_id = prop['image_id']
             is_crowd = prop['iscrowd']
 
+            # some pictures have no box & annotation
+            if len(gt_boxes[0]) == 0:
+                continue
+
             if t.cuda.is_available():
                 img, gt_boxes, gt_labels, gt_masks = img.cuda(), gt_boxes.cuda(), gt_labels.cuda(), gt_masks.cuda()
 
@@ -185,6 +189,8 @@ def train(opt):
                 # show predict mask img
                 pred_mask_img = visdom_mask(ori_img, img_id.item(), dataset.coco, pred_masks.cpu().numpy(), pred_labels.cpu().numpy(), is_crowd[0].cpu().numpy())
                 vis.img('pred_mask_img', pred_mask_img)
+
+        print('the value of idx', idx)
 
         # eval
         result = eval(maskrcnn, epoch, opt)

@@ -151,5 +151,7 @@ def vis_mask_to_pic(ann_path, split):
 if __name__ == '__main__':
     ann_path = 'E:\\Datasets\\COCO2017\\annotations\\instances_train2017.json'
     split = 'train2017'
-    vis_mask_to_pic(ann_path, split)
-    show_one_img_with_ann_by_path(ann_path, split)
+    img_id = 262284
+    #vis_mask_to_pic(ann_path, split)
+    #show_one_img_with_ann_by_path(ann_path, split)
+    show_one_img_with_ann_by_id(ann_path, split, img_id)

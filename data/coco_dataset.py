@@ -42,20 +42,24 @@ class Coco_Dataset(object):
         prop = self.get_other_prop(img_id)
 
         # np.ndarray ~ resize to config size, [C,H,W]
-        img_size = (img.shape[1], img.shape[2])
+        pre_img_size = (img.shape[1], img.shape[2])
         img = preprocess(img, min_size=self.img_min_size, max_size=self.img_max_size)
-
-        # resize boxes & masks
-        prop['gt_boxes'] = resize_bbox(prop['gt_boxes'], img_size, (img.shape[1], img.shape[2]))
-        prop['gt_masks'] = resize_mask(prop['gt_masks'], img_size, (img.shape[1], img.shape[2]))
+        post_img_size = (img.shape[1], img.shape[2])
 
         # scale
-        prop['scale'] = img.shape[1]/img_size[0]
+        prop['scale'] = post_img_size[0]/pre_img_size[0]
 
-        # do img random flip to augment the dataset
-        img, flip_param = random_flip(img, x_random=True, return_param=True)
-        prop['gt_boxes'] = flip_bbox(prop['gt_boxes'], (img.shape[1], img.shape[2]), x_flip=flip_param['x_flip'])
-        prop['gt_masks'] = flip_mask(prop['gt_masks'], x_flip=flip_param['x_flip'])
+        # if there exists gt boxes, do resize & flip
+        if len(prop['gt_boxes']) > 0 :
+            # resize boxes & masks
+            prop['gt_boxes'] = resize_bbox(prop['gt_boxes'], pre_img_size, post_img_size)
+            prop['gt_masks'] = resize_mask(prop['gt_masks'], pre_img_size, post_img_size)
+
+            # do img random flip to augment the dataset
+            img, flip_param = random_flip(img, x_random=True, return_param=True)
+            prop['gt_boxes'] = flip_bbox(prop['gt_boxes'], post_img_size, x_flip=flip_param['x_flip'])
+            prop['gt_masks'] = flip_mask(prop['gt_masks'], x_flip=flip_param['x_flip'])
+
         # note mask's dtype is uint8
         return img, prop 
 
@@ -92,7 +96,12 @@ class Coco_Dataset(object):
             # the only different from coco api annToMask is, my code generates interger axises
             # and api generates float versions, there are maybe a little differences in value
             # boxes = self.getbox_from_mask(masks.numpy())
-
+        else:  # well, there may be exceptions, no annotation in a picture
+            boxes = np.array(boxes)
+            labels = np.array(boxes)
+            masks = np.array(masks)
+            is_crowd = np.array(is_crowd)
+        
         prop = dict(image_id=img_id, iscrowd=is_crowd, gt_boxes=boxes, gt_labels=labels, gt_masks=masks)
 
         return prop

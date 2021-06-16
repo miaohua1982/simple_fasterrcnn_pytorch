@@ -51,9 +51,9 @@ class ProposalTargetCreator:
             # pooled_features : [num of boxes, 1, pool_height, pool_width]
             # pos_masks' None is to add one dim=1
             pos_pooled_masks = RoIAlign_C.apply(t.from_numpy(pos_masks[:,None]), t.from_numpy(pos_rois), t.from_numpy(rois_inds), self.gt_mask_size[0], self.gt_mask_size[1], 1.0)
-            align_roi = RoIAlign((self.gt_mask_size[0], self.gt_mask_size[1]), spatial_scale=1.0, sampling_ratio=-1)
-            indices_and_rois = t.cat([t.from_numpy(rois_inds)[:, None], t.from_numpy(pos_rois)], dim=1)
-            pos_pooled_masks = align_roi(t.from_numpy(pos_masks[:,None]).float(), indices_and_rois) # here float is the same dtype with rois
+            #align_roi = RoIAlign((self.gt_mask_size[0], self.gt_mask_size[1]), spatial_scale=1.0, sampling_ratio=-1)
+            #indices_and_rois = t.cat([t.from_numpy(rois_inds)[:, None], t.from_numpy(pos_rois)], dim=1)
+            #pos_pooled_masks = align_roi(t.from_numpy(pos_masks[:,None]).float(), indices_and_rois) # here float is the same dtype with rois
 
             # squeeze [num of boxes, 1, pool_height, pool_width] to [num of boxes, pool_height, pool_width] 
             pos_pooled_masks = np.where(pos_pooled_masks[:,0]>=0.5, 1, 0) 

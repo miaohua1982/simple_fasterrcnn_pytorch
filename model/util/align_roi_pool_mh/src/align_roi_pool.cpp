@@ -91,15 +91,15 @@ void CropAndResizePerBox(
                     float p_val = 0.0f;
                     for(int i = 0; i < sample_ratio_height; ++i) {
                         float py = in_y + height_scale*(0.5f+i)/sample_ratio_height;
-                        int top_y = max(int(std::floorf(py)), 0);
-                        int down_y = min(int(std::ceilf(py)), image_height-1);
+                        int top_y = min(max(int(std::floorf(py)), 0), image_height-1);
+                        int down_y = max(min(int(std::ceilf(py)), image_height-1), 0);
                         float y_lerp = py-top_y;
 
                         for(int j = 0; j < sample_ratio_width; ++j) {
                             float px = in_x + width_scale*(0.5f+j)/sample_ratio_width;
 
-                            int left_x = max(int(std::floorf(px)), 0);
-                            int right_x = min(int(std::ceilf(px)), image_width-1);
+                            int left_x = min(max(int(std::floorf(px)), 0), image_height-1);
+                            int right_x = max(min(int(std::ceilf(px)), image_width-1), 0);
                             float x_lerp = px-left_x;
 
                             const float top_left = pimage[top_y * image_width + left_x];
@@ -254,14 +254,14 @@ void align_roi_pool_backward(
 
                     for(int i = 0; i < sample_ratio_height; ++i) {
                         float py = in_y + height_scale*(0.5f+i)/sample_ratio_height;
-                        int top_y = max(int(std::floorf(py)), 0);
-                        int down_y = min(int(std::ceilf(py)), image_height-1);
+                        int top_y = min(max(int(std::floorf(py)), 0), image_height-1);
+                        int down_y = max(min(int(std::ceilf(py)), image_height-1), 0);
                         float y_lerp = py-top_y;
 
                         for(int j = 0; j < sample_ratio_width; ++j) {
                             float px = in_x + width_scale*(0.5f+j)/sample_ratio_width;
-                            int left_x = max(int(std::floorf(px)), 0);
-                            int right_x = min(int(std::ceilf(px)), image_width-1);
+                            int left_x = min(max(int(std::floorf(px)), 0), image_height-1);
+                            int right_x = max(min(int(std::ceilf(px)), image_width-1), 0);
                             float x_lerp = px-left_x;
 
                             const float top_val = (1-y_lerp)*grad_val;

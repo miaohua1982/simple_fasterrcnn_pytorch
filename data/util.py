@@ -269,6 +269,14 @@ def random_flip(img, y_random=False, x_random=False,
         return img
 
 def xmin_ymin_wh_2_xyxy(box):
+    '''
+        Change the box from [xmin, ymin, width, height] to [xmin, ymin, xmax, ymax]
+
+        Args:
+            box(np.array): the box to be changed, hope in format [xmin, ymin, width, height]
+        Returns:
+            new_box(np.array): the box has be changed, in format [xmin, ymin, xmax, ymax]
+    '''
     xmin = box[:,[0]]
     ymin = box[:,[1]]
     w = box[:,[2]]
