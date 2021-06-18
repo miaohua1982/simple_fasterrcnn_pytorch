@@ -75,6 +75,24 @@ class Fasterrcnn_Config(ConfigBase):
     pass
 
 class Maskrcnn_Config(ConfigBase):
+    # global setting
+
+    # according to paper
+    # ... with a learning rate of 0.02 which is decreased by 10 at the 120k iteration. We use a weight decay of 0.0001 and momentum of 0.9
+
+    # Learning rate and momentum
+    # The Mask RCNN paper uses lr=0.02, but on TensorFlow it causes weights to explode. Likely due to differences in optimizer implementation.
+    weight_decay = 0.0001
+    lr_decay = 0.1  # 1e-3 -> 1e-4
+    learning_rate= 0.02    # or 0.001 according to  Matterport's mask rcnn implementation
+    momentum = 0.9
+    
+    # according to paper
+    # ... We train on 8 GPUs (so effective minibatch size is 16) for 160k iterations, with a learning rate of 0.02 which is decreased by 10 at the 120k iteration
+    batch_size = 16
+    num_epochs = 160
+    lr_dec_epochs = 120
+    steps_per_epoch = 1000
     # backbone network
     backbone = "resnet101"
     num_classes = 80     # coco dataset has 80 classes
@@ -96,9 +114,11 @@ class Maskrcnn_Config(ConfigBase):
     pre_train_num=6000
     post_train_num=2000
     pre_test_num=6000
-    post_test_num=1000
+    post_test_num=1000  # according to paper, at test time, the proposal number is 300 for the C4 backbone (as in [36]) and 1000 for FPN (as in [27]).
     skip_small_obj=False  #wether to skip small object
-    # proposal target creator
+    # proposal target creator for roi head network training
+    pos_roi_ratio=0.25  # with a ratio of 1:3 of positive to negatives [12].
+    n_roi_sample=512    # N is 64 for the C4 backbone (as in [12, 36]) and 512 for FPN (as in [27]).
     gt_mask_size = (28, 28)
     # roi header
     mask_roi_size = 14

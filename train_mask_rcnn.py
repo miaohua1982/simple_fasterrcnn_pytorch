@@ -34,14 +34,16 @@ def get_optimizer(opt, model):
     params = []
     for key, value in dict(model.named_parameters()).items():
         if value.requires_grad:
-            if 'bias' in key:
-                params += [{'params': [value], 'lr': lr * 2, 'weight_decay': 0}]
+            if 'bn' in key:
+                params += [{'params': [value], 'lr': lr, 'weight_decay': 0}]
             else:
                 params += [{'params': [value], 'lr': lr, 'weight_decay': opt.weight_decay}]
     if opt.use_adam:
         optimizer = t.optim.Adam(params)
     else:
-        optimizer = t.optim.SGD(params, momentum=0.9)
+        optimizer = t.optim.SGD(params, momentum=opt.momentum)
+
+    optimizer.zero_grad()
     return optimizer
 
 def scale_lr(optimizer, decay=0.1):
@@ -56,7 +58,6 @@ def eval(model, epoch_idx, opt, test_num=1):
     # setup coco eval class
     iou_types = ["bbox", "segm"]
     coco_evaluator = CocoEvaluator(dataset.coco, dataset.classes_id_map, iou_types)
-
     # set to eval mode
     model.eval()
 
@@ -137,7 +138,9 @@ def train(opt):
             scale = prop['scale']
             img_id = prop['image_id']
             is_crowd = prop['iscrowd']
-
+            
+            # for debug
+            print('current img id is', img_id.item())
             # some pictures have no box & annotation
             if len(gt_boxes[0]) == 0:
                 continue
@@ -145,12 +148,17 @@ def train(opt):
             if t.cuda.is_available():
                 img, gt_boxes, gt_labels, gt_masks = img.cuda(), gt_boxes.cuda(), gt_labels.cuda(), gt_masks.cuda()
 
-            optimizer.zero_grad()
             rpn_cls_loss, rpn_reg_loss, roi_cls_loss, roi_reg_loss, roi_mask_loss, _, _, _, _ = maskrcnn(img, gt_boxes, gt_labels, gt_masks, scale.item())
             total_loss = rpn_cls_loss+rpn_reg_loss+roi_cls_loss+roi_reg_loss+roi_mask_loss
-            total_loss.backward()
-            optimizer.step()
             
+            # gradient back propgation
+            # we accumulate the gradient
+            total_loss.backward()
+            t.nn.utils.clip_grad_norm_(maskrcnn.parameters(), 5.0)
+            if (idx+1) % opt.batch_size == 0:
+                optimizer.step()
+                optimizer.zero_grad()
+
             avg_rpn_reg_loss += (rpn_reg_loss.item()-avg_rpn_reg_loss)/(idx+1) 
             avg_roi_reg_loss += (roi_reg_loss.item()-avg_roi_reg_loss)/(idx+1) 
             avg_rpn_cls_loss += (rpn_cls_loss.item()-avg_rpn_cls_loss)/(idx+1)
@@ -190,6 +198,9 @@ def train(opt):
                 pred_mask_img = visdom_mask(ori_img, img_id.item(), dataset.coco, pred_masks.cpu().numpy(), pred_labels.cpu().numpy(), is_crowd[0].cpu().numpy())
                 vis.img('pred_mask_img', pred_mask_img)
 
+            if idx == opt.batch_size*opt.steps_per_epoch-1:
+                break
+        
         print('the value of idx', idx)
 
         # eval
@@ -215,7 +226,8 @@ def train(opt):
             maskrcnn.load_state_dict(t.load(opt.load_model_path))
 
         # decay the model's learning rate
-        if epoch == 9:  # it is a trick
+        # In paper, it says "with a learning rate of 0.02 which is decreased by 10 at the 120k iteration"
+        if epoch == opt.lr_dec_epochs-1:  # it is a trick
             optimizer = scale_lr(optimizer, mask_running_args.lr_decay)
             cur_lr *= mask_running_args.lr_decay
         

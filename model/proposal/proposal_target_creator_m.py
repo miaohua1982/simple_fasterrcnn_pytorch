@@ -13,7 +13,7 @@ class ProposalTargetCreator:
     For mask rcnn
     '''
     def __init__(self, n_sample, pos_ratio, pos_iou_thresh, neg_iou_thresh_hi, neg_iou_thresh_lo, loc_normalize_mean, loc_normalize_std, mask_size):
-        self.n_sample = n_sample                     # default value is 128, you can change it in config.py
+        self.n_sample = n_sample                     # default value is 512, you can change it in config.py
         self.pos_ratio = pos_ratio                   # default value is 0.25, you can change it in config.py
         self.pos_iou_thresh = pos_iou_thresh         # default value is 0.5, you can change it in config.py
         self.neg_iou_thresh_hi = neg_iou_thresh_hi   # default value is 0.5, you can change it in config.py

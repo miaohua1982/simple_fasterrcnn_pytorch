@@ -48,7 +48,7 @@ def preprocess(img, min_size=600, max_size=1000):
     scale = min(scale1, scale2)
     img = img / 255.
     # the same with scipy.misc.imresize
-    img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect',anti_aliasing=False)
+    img = sktsf.resize(img, (C, H * scale, W * scale), mode='reflect', anti_aliasing=False)
     # both the longer and shorter should be less than
     # max_size and min_size
     return pytorch_normalze(img)
@@ -145,7 +145,8 @@ def unmold_mask(mask, bbox, image_shape):
     """
     threshold = 0.5
     x1, y1, x2, y2 = bbox
-    mask = sktsf.resize(mask, (y2 - y1, x2 - x1), interp='bilinear').astype(np.float32)
+    # The order of interpolation. The order has to be in the range 0-5, 1: Bi-linear (default)
+    mask = sktsf.resize(mask, (y2 - y1, x2 - x1), order=1).astype(np.float32)
     mask = np.where(mask >= threshold, 1, 0).astype(np.uint8)
 
     # Put the mask in the right location.
