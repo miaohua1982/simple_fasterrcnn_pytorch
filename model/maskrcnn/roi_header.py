@@ -28,13 +28,9 @@ def pyramid_roi_align(feature_maps, boxes, pool_size, image_shape):
     h = y2 - y1
     w = x2 - x1
 
-    # Equation 1 in the Feature Pyramid Networks paper. Account for
-    # the fact that our coordinates are normalized here.
+    # Equation 1(k = ⌊k0 + log2(√wh/224)⌋) in the Feature Pyramid Networks paper, where k0=4
     # e.g. a 224x224 ROI (in pixels) maps to P4
-    image_area = torch.FloatTensor([float(image_shape[0]*image_shape[1])])
-    if torch.cuda.is_available():
-        image_area = image_area.cuda()
-    roi_level = 4 + torch.log2(torch.sqrt(h*w)/(224.0/torch.sqrt(image_area)))
+    roi_level = 4 + torch.log2(torch.sqrt(h*w)/224.0)
     roi_level = roi_level.round().int()
     roi_level = roi_level.clamp(2,5)
 

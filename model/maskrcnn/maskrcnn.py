@@ -249,8 +249,13 @@ class MaskRCNN(nn.Module):
         scaled_boxes = []
         for one_box, one_mask in zip(bbox, masks):
             if present == 'evaluate':
-                one_box = resize_bbox(one_box.numpy(), (h,w), img_size)
+                one_box = resize_bbox(one_box.numpy(), (h,w), img_size).astype(np.int32) # unmold mask need int type position
                 scaled_boxes.append(t.from_numpy(one_box))
+            else:
+                one_box = one_box.cpu().numpy().astype(np.int32) # unmold mask need int type position
+                one_mask = one_mask.cpu().numpy()
+                scaled_boxes.append(t.from_numpy(one_box))
+            
             mask = unmold_mask(one_mask, one_box, img_size)
             full_masks.append(t.from_numpy(mask))
         if len(full_masks) > 0:

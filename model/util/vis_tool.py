@@ -6,7 +6,7 @@ import torch as t
 import visdom
 from data.coco_helper import maskToanno
 
-matplotlib.use('Agg') # used before import pyplot, make pic do not show on screen
+# matplotlib.use('Agg') # used before import pyplot, make pic do not show on screen
 from matplotlib import pyplot as plot
 
 # I copy the most of the code in this file from other project

@@ -28,7 +28,7 @@ class ConfigBase(object):
     num_epochs=14
     use_drop=False
     feat_stride=16
-    plot_spot=100
+    plot_spot=2
     debug_file='/tmp/debug'
     vis_env='fastercnn_mh'
     #------------------------------

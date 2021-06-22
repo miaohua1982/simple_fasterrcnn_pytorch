@@ -5,7 +5,7 @@ import numpy as np
 from config.config import running_args
 from data.util import read_image, preprocess, resize_bbox, random_flip, flip_bbox
 
-VOC_BBOX_LABEL_NAMES = (
+VOC_BBOX_LABEL_NAMES = [
     'aeroplane',
     'bicycle',
     'bird',
@@ -25,7 +25,7 @@ VOC_BBOX_LABEL_NAMES = (
     'sheep',
     'sofa',
     'train',
-    'tvmonitor')
+    'tvmonitor']
 
 
 class Voc_Dataset:
