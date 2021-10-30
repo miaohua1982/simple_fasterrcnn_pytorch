@@ -13,13 +13,18 @@ def nograd(f):
     return new_f
 
 class ProposalCreator:
-    def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh):
+    def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh, loc_normalize_mean, loc_normalize_std):
         self.pre_train_num = pre_train_num   # default value is 12000, you can change it in config.py
         self.post_train_num = post_train_num # default value is 6000, you can change it in config.py
         self.pre_test_num = pre_test_num     # default value is 2000, you can change it in config.py
         self.post_test_num = post_test_num   # default value is 300, you can change it in config.py
         self.min_roi_size = min_roi_size     # default value is 16, you can change it in config.py
         self.nms_thresh = nms_thresh         # default value is 0.7, you can change it in config.py
+        self.loc_normalize_mean = t.tensor(loc_normalize_mean, dtype=t.float32) # default value is [0,0,0,0], you can change it in config.py
+        self.loc_normalize_std = t.tensor(loc_normalize_std, dtype=t.float32)   # default value is [0.1, 0.1, 0.2, 0.2], you can change it in config.py
+        if t.cuda.is_available():
+            self.loc_normalize_mean = self.loc_normalize_mean.cuda()
+            self.loc_normalize_std = self.loc_normalize_std.cuda()
 
     @nograd
     def __call__(self, anchors, rpn_reg_loc, rpn_score, img_size, scale, is_training):
@@ -43,8 +48,9 @@ class ProposalCreator:
             pre_num = self.pre_test_num
             post_num = self.post_test_num
 
-        # 1. from scale & offset to position 
-        proposal_rois = delta2box(anchors, rpn_reg_loc)
+        # 1. from scale & offset to position
+        deltas = rpn_reg_loc*self.loc_normalize_std+self.loc_normalize_mean
+        proposal_rois = delta2box(anchors, deltas)
 
         # 2. clip, img_size=(img_height, img_width)
         proposal_rois[:,0] = t.clamp(proposal_rois[:,0], 0, img_size[1])

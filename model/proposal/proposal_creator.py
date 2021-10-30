@@ -1,21 +1,23 @@
 from __future__ import  absolute_import
 
-import torch as t
+#import torch as t
 import numpy as np
-from torchvision.ops import nms
+# from torchvision.ops import nms
 import nms_mh as mh
 from model.util.nms import nms as my_nms
 from model.util.bbox_opt import delta2box
 
 
 class ProposalCreator:
-    def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh, skip_small_obj=False):
+    def __init__(self, pre_train_num, post_train_num, pre_test_num, post_test_num, min_roi_size, nms_thresh, loc_normalize_mean, loc_normalize_std, skip_small_obj=False):
         self.pre_train_num = pre_train_num   # default value is 12000, you can change it in config.py
         self.post_train_num = post_train_num # default value is 6000, you can change it in config.py
         self.pre_test_num = pre_test_num     # default value is 2000, you can change it in config.py
         self.post_test_num = post_test_num   # default value is 300, you can change it in config.py
         self.min_roi_size = min_roi_size     # default value is 16, you can change it in config.py
         self.nms_thresh = nms_thresh         # default value is 0.7, you can change it in config.py
+        self.loc_normalize_mean = np.array(loc_normalize_mean) # default value is [0,0,0,0], you can change it in config.py
+        self.loc_normalize_std = np.array(loc_normalize_std)   # default value is [0.1, 0.1, 0.2, 0.2], you can change it in config.py
         self.skip_small_obj = skip_small_obj
 
     def __call__(self, anchors, rpn_reg_loc, rpn_score, img_size, scale, is_training):
@@ -33,8 +35,9 @@ class ProposalCreator:
             pre_num = self.pre_test_num
             post_num = self.post_test_num
 
-        # 1. from scale & offset to position 
-        proposal_rois = delta2box(anchors, rpn_reg_loc)
+        # 1. from scale & offset to position
+        deltas = rpn_reg_loc*self.loc_normalize_std+self.loc_normalize_mean
+        proposal_rois = delta2box(anchors, deltas)
 
         # 2. clip, img_size=(img_height, img_width)
         proposal_rois[:,0] = np.clip(proposal_rois[:,0], 0, img_size[1])

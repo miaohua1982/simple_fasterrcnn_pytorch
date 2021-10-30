@@ -68,6 +68,7 @@ class MaskRCNN(nn.Module):
         # proposal creator
         self.proposal_creator = ProposalCreator(mask_running_args.pre_train_num, mask_running_args.post_train_num, mask_running_args.pre_test_num, \
                                                 mask_running_args.post_test_num, mask_running_args.min_roi_size, mask_running_args.proposal_nms_thresh,\
+                                                mask_running_args.loc_normalize_mean, mask_running_args.loc_normalize_std,\
                                                 mask_running_args.skip_small_obj)  # wether to skip small obj
 
         # anchor target creator for training rpn network

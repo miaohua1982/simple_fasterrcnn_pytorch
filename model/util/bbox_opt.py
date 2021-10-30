@@ -1,4 +1,6 @@
 import numpy as np
+import warnings
+warnings.filterwarnings("error", category = RuntimeWarning)
 
 def gen_anchor_boxes(ratios=[0.5, 1, 2], anchor_scales=[8, 16, 32], base_size=16):
     base_box = []
@@ -79,18 +81,25 @@ def gen_pyramid_anchors(scales, ratios, image_size, feat_strides, anchor_stride)
     return anchor_boxes
 
 def delta2box(base_boxes, deltas):
-    xywh_boxes = xxyy2xywh(base_boxes)
+    try:
+        xywh_boxes = xxyy2xywh(base_boxes)
 
-    w = np.exp(deltas[:,[2]])*xywh_boxes[:,[2]]
-    h = np.exp(deltas[:,[3]])*xywh_boxes[:,[3]]
-    x = xywh_boxes[:,[2]]*deltas[:,[0]]+xywh_boxes[:,[0]]
-    y = xywh_boxes[:,[3]]*deltas[:,[1]]+xywh_boxes[:,[1]]
+        # sometimes the rpn will generates very big numbers, so the exp opt will overflow
+        # so clip it to [0.0005, 2048], will it is enough
+        w = np.exp(np.clip(deltas[:,[2]], np.log(0.0005), np.log(2048)))*xywh_boxes[:,[2]]
+        h = np.exp(np.clip(deltas[:,[3]], np.log(0.0005), np.log(2048)))*xywh_boxes[:,[3]]
+        x = xywh_boxes[:,[2]]*deltas[:,[0]]+xywh_boxes[:,[0]]
+        y = xywh_boxes[:,[3]]*deltas[:,[1]]+xywh_boxes[:,[1]]
 
-    boxes = np.concatenate([x, y, w, h], axis=1)
+        boxes = np.concatenate([x, y, w, h], axis=1)
 
-    xxyy_boxes = xywh2xxyy(boxes)
+        xxyy_boxes = xywh2xxyy(boxes)
 
-    return xxyy_boxes
+        return xxyy_boxes
+    except RuntimeWarning:
+        import ipdb
+        ipdb.set_trace()
+        print('Oh shit! I am in trouble!')
 
 def box2delta(predict_boxes, gt_boxes):
     predict_boxes_xywh = xxyy2xywh(predict_boxes)

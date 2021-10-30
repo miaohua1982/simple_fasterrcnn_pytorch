@@ -1,7 +1,7 @@
 from __future__ import  absolute_import
 
 import torch as t
-from model.util.bbox_opt_t import delta2box, box2delta
+from model.util.bbox_opt_t import box2delta
 from model.util.iou_t import calc_iou
 from functools import wraps 
 

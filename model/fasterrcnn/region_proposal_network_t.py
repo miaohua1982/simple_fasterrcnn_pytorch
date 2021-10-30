@@ -14,7 +14,8 @@ class RegionProposalNetwork(nn.Module):
         self.score = nn.Conv2d(mid_channels, n_per_anchor * 2, 1, 1, 0)
         self.loc = nn.Conv2d(mid_channels, n_per_anchor * 4, 1, 1, 0)
         self.proposal_creator = ProposalCreator(running_args.pre_train_num, running_args.post_train_num, running_args.pre_test_num, \
-                                                running_args.post_test_num, running_args.min_roi_size, running_args.proposal_nms_thresh)
+                                                running_args.post_test_num, running_args.min_roi_size, running_args.proposal_nms_thresh, \
+                                                loc_normalize_mean=running_args.loc_normalize_mean, loc_normalize_std=running_args.loc_normalize_std)
 
         # parameter init
         normal_init(self.conv, 0, 0.01)

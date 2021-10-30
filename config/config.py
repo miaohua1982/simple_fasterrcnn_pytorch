@@ -25,10 +25,10 @@ class ConfigBase(object):
     #train set
     batch_size=1
     num_classes=20
-    num_epochs=14
+    num_epochs=30
     use_drop=False
     feat_stride=16
-    plot_spot=2
+    plot_spot=100
     debug_file='/tmp/debug'
     vis_env='fastercnn_mh'
     #------------------------------

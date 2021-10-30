@@ -1,7 +1,7 @@
 from __future__ import  absolute_import
 
 import torch as t
-from model.util.bbox_opt_t import delta2box, box2delta
+from model.util.bbox_opt_t import box2delta
 from model.util.iou_t import calc_iou
 from functools import wraps 
 
@@ -13,7 +13,7 @@ def nograd(f):
     return new_f
 
 class AnchorTargetCreator:
-    def __init__(self, n_sample, pos_ratio, neg_iou_thresh, pos_iou_thresh):
+    def __init__(self, n_sample, pos_ratio, neg_iou_thresh, pos_iou_thresh, loc_normalize_mean, loc_normalize_std):
         self.n_sample = n_sample                  # default value is 256, you can change it in config.py
         self.pos_ratio = pos_ratio                # default value is 0.5, means that in n_sample samples, half is positive, half is negative
         self.neg_iou_thresh = neg_iou_thresh
